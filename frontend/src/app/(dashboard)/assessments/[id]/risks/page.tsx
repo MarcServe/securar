@@ -25,14 +25,34 @@ export default async function RisksPage({
     notFound();
   }
 
+  // Type the assessment
+  const typedAssessment = assessment as {
+    id: string;
+    organisations: { name: string } | null;
+  };
+
   // Load all risks
-  const { data: risks } = await supabase
+  const { data: risksData } = await supabase
     .from("risks")
     .select("*")
     .eq("assessment_id", params.id)
     .order("created_at", { ascending: true });
 
-  const org = assessment.organisations as { name: string } | null;
+  const risks = risksData as Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    severity: string;
+    likelihood: string | null;
+    impact: string | null;
+    recommendation: string | null;
+    remediation_timeframe: string | null;
+    risk_references: unknown;
+    recommendation_actions?: string[];
+    recommendation_resources?: string[];
+  }> | null;
+
+  const org = typedAssessment.organisations;
 
   // Group risks by severity
   const criticalRisks = risks?.filter(r => r.severity === "critical") || [];

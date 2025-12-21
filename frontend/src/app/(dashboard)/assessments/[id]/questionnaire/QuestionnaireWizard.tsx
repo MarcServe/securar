@@ -62,7 +62,7 @@ export function QuestionnaireWizard({
     const { data: { user } } = await supabase.auth.getUser();
 
     // Upsert response
-    await supabase.from("responses").upsert({
+    await (supabase.from("responses") as any).upsert({
       assessment_id: assessmentId,
       question_id: currentQuestion.id,
       answer: { value: answer },
@@ -73,8 +73,7 @@ export function QuestionnaireWizard({
 
     // Update assessment status if first response
     if (Object.keys(responses).length === 0) {
-      await supabase
-        .from("assessments")
+      await (supabase.from("assessments") as any)
         .update({ status: "collecting" })
         .eq("id", assessmentId);
     }

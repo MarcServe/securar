@@ -22,26 +22,35 @@ export default async function DashboardPage() {
   }
 
   // Get user's organisation
-  const { data: membership } = await supabase
+  const { data: membershipData } = await supabase
     .from("memberships")
     .select("org_id, role, organisations(*)")
     .eq("user_id", user.id)
     .single();
 
+  const membership = membershipData as {
+    org_id: string;
+    role: string;
+    organisations: { id: string; name: string; industry: string | null; size_band: string | null } | null;
+  } | null;
+
   // Get assessments for this org
-  const { data: assessments } = await supabase
+  const { data: assessmentsData } = await supabase
     .from("assessments")
     .select("*")
     .eq("org_id", membership?.org_id || "")
     .order("created_at", { ascending: false })
     .limit(5);
 
-  const org = membership?.organisations as {
+  const assessments = assessmentsData as Array<{
     id: string;
-    name: string;
-    industry: string | null;
-    size_band: string | null;
-  } | null;
+    status: string;
+    readiness_score: number | null;
+    target_frameworks: string[] | null;
+    created_at: string;
+  }> | null;
+
+  const org = membership?.organisations;
 
   // Calculate stats
   const completedCount = assessments?.filter(a => a.status === "completed").length || 0;

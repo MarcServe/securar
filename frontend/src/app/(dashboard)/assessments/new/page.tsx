@@ -74,18 +74,18 @@ export default function NewAssessmentPage() {
       }
 
       // Check if user already has an org
-      const { data: existingMembership } = await supabase
+      const { data: existingMembershipData } = await supabase
         .from("memberships")
         .select("org_id")
         .eq("user_id", user.id)
         .single();
 
+      const existingMembership = existingMembershipData as { org_id: string } | null;
       let orgId = existingMembership?.org_id;
 
       // Create organisation if none exists
       if (!orgId) {
-        const { data: newOrg, error: orgError } = await supabase
-          .from("organisations")
+        const { data: newOrgData, error: orgError } = await (supabase.from("organisations") as any)
           .insert({
             name: orgName,
             industry,
@@ -96,11 +96,11 @@ export default function NewAssessmentPage() {
           .single();
 
         if (orgError) throw orgError;
+        const newOrg = newOrgData as { id: string };
         orgId = newOrg.id;
 
         // Create membership
-        const { error: memberError } = await supabase
-          .from("memberships")
+        const { error: memberError } = await (supabase.from("memberships") as any)
           .insert({
             org_id: orgId,
             user_id: user.id,
@@ -110,8 +110,7 @@ export default function NewAssessmentPage() {
         if (memberError) throw memberError;
       } else {
         // Update existing org details
-        await supabase
-          .from("organisations")
+        await (supabase.from("organisations") as any)
           .update({
             name: orgName || undefined,
             industry: industry || undefined,
@@ -122,8 +121,7 @@ export default function NewAssessmentPage() {
       }
 
       // Create assessment
-      const { data: assessment, error: assessmentError } = await supabase
-        .from("assessments")
+      const { data: assessmentData, error: assessmentError } = await (supabase.from("assessments") as any)
         .insert({
           org_id: orgId,
           target_frameworks: selectedFrameworks,
@@ -134,6 +132,7 @@ export default function NewAssessmentPage() {
         .single();
 
       if (assessmentError) throw assessmentError;
+      const assessment = assessmentData as { id: string };
 
       // Redirect to the assessment
       router.push(`/assessments/${assessment.id}`);

@@ -21,26 +21,22 @@ export function ResetAssessmentButton({ assessmentId }: ResetAssessmentButtonPro
       const supabase = createClient();
 
       // Delete control results
-      await supabase
-        .from("control_results")
+      await (supabase.from("control_results") as any)
         .delete()
         .eq("assessment_id", assessmentId);
 
       // Delete risks
-      await supabase
-        .from("risks")
+      await (supabase.from("risks") as any)
         .delete()
         .eq("assessment_id", assessmentId);
 
       // Delete reports
-      await supabase
-        .from("reports")
+      await (supabase.from("reports") as any)
         .delete()
         .eq("assessment_id", assessmentId);
 
       // Reset assessment status and score
-      await supabase
-        .from("assessments")
+      await (supabase.from("assessments") as any)
         .update({
           status: "draft",
           readiness_score: null,

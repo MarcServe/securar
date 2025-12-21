@@ -29,12 +29,14 @@ export function ClearAllEvidenceButton({
       const supabase = createClient();
 
       // Get all evidence for this assessment
-      const { data: evidence, error: fetchError } = await supabase
+      const { data: evidenceData, error: fetchError } = await supabase
         .from("evidence")
         .select("id, file_path")
         .eq("assessment_id", assessmentId);
 
       if (fetchError) throw fetchError;
+
+      const evidence = evidenceData as Array<{ id: string; file_path: string }> | null;
 
       if (evidence && evidence.length > 0) {
         // Delete from storage
@@ -43,7 +45,7 @@ export function ClearAllEvidenceButton({
 
         // Delete from database
         const ids = evidence.map((e) => e.id);
-        await supabase.from("evidence").delete().in("id", ids);
+        await (supabase.from("evidence") as any).delete().in("id", ids);
       }
 
       // Refresh the page

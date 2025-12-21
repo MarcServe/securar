@@ -120,17 +120,17 @@ export default function OnboardingPage() {
       if (!user) throw new Error("Not authenticated");
 
       // Get user's org membership
-      const { data: membership, error: memError } = await supabase
+      const { data: membershipData, error: memError } = await supabase
         .from("memberships")
         .select("org_id")
         .eq("user_id", user.id)
         .single();
 
       if (memError) throw new Error("Organisation not found");
+      const membership = membershipData as { org_id: string };
 
       // Update organisation profile
-      const { error: updateError } = await supabase
-        .from("organisations")
+      const { error: updateError } = await (supabase.from("organisations") as any)
         .update({
           industry: data.industry,
           country: data.country,
@@ -141,8 +141,7 @@ export default function OnboardingPage() {
       if (updateError) throw updateError;
 
       // Create initial assessment
-      const { data: assessment, error: assessError } = await supabase
-        .from("assessments")
+      const { data: assessment, error: assessError } = await (supabase.from("assessments") as any)
         .insert({
           org_id: membership.org_id,
           target_frameworks: data.compliance_targets,

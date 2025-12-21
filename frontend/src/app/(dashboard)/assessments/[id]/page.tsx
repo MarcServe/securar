@@ -29,22 +29,31 @@ export default async function AssessmentDetailPage({
   if (!user) redirect("/login");
 
   // Load assessment with org info
-  const { data: assessment, error } = await supabase
+  const { data: assessmentData, error } = await supabase
     .from("assessments")
     .select("*, organisations(*)")
     .eq("id", params.id)
     .single();
 
-  if (error || !assessment) {
+  if (error || !assessmentData) {
     notFound();
   }
+
+  // Type the assessment
+  const assessment = assessmentData as {
+    id: string;
+    status: string;
+    readiness_score: number | null;
+    target_frameworks: string[] | null;
+    organisations: { name: string } | null;
+  };
 
   // Load related data
   const [
     { data: responses, count: responseCount },
     { data: evidence, count: evidenceCount },
-    { data: controlResults },
-    { data: risks },
+    { data: controlResultsData },
+    { data: risksData },
   ] = await Promise.all([
     supabase
       .from("responses")
@@ -66,7 +75,22 @@ export default async function AssessmentDetailPage({
       .limit(5),
   ]);
 
-  const org = assessment.organisations as { name: string } | null;
+  // Type the results
+  const controlResults = controlResultsData as Array<{
+    id: string;
+    status: string;
+    controls: { domain: string } | null;
+  }> | null;
+
+  const risks = risksData as Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    severity: string;
+    remediation_timeframe: string | null;
+  }> | null;
+
+  const org = assessment.organisations;
 
   // Calculate progress
   const totalSteps = 3;

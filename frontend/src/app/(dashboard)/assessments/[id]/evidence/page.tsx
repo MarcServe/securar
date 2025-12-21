@@ -18,24 +18,38 @@ export default async function EvidencePage({
   if (!user) redirect("/login");
 
   // Load assessment
-  const { data: assessment, error: assessmentError } = await supabase
+  const { data: assessmentData, error: assessmentError } = await supabase
     .from("assessments")
     .select("*, organisations(*)")
     .eq("id", params.id)
     .single();
 
-  if (assessmentError || !assessment) {
+  if (assessmentError || !assessmentData) {
     notFound();
   }
 
+  const assessment = assessmentData as {
+    id: string;
+    organisations: { id: string } | null;
+  };
+
   // Load existing evidence
-  const { data: evidence } = await supabase
+  const { data: evidenceData } = await supabase
     .from("evidence")
     .select("*")
     .eq("assessment_id", params.id)
     .order("created_at", { ascending: false });
 
-  const org = assessment.organisations as { id: string } | null;
+  const evidence = evidenceData as Array<{
+    id: string;
+    file_name: string;
+    file_path: string;
+    file_type: string | null;
+    status: string;
+    created_at: string;
+  }> | null;
+
+  const org = assessment.organisations;
 
   return (
     <div className="min-h-screen bg-background">

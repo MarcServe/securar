@@ -18,22 +18,34 @@ export default async function ReportsPage() {
   if (!user) redirect("/login");
 
   // Get user's organisation
-  const { data: membership } = await supabase
+  const { data: membershipData } = await supabase
     .from("memberships")
     .select("org_id, organisations(*)")
     .eq("user_id", user.id)
     .single();
 
+  const membership = membershipData as {
+    org_id: string;
+    organisations: { name: string } | null;
+  } | null;
+
   const orgId = membership?.org_id;
 
   // Get all reports for this org
-  const { data: reports } = await supabase
+  const { data: reportsData } = await supabase
     .from("reports")
     .select("*, assessments(*)")
     .eq("org_id", orgId || "")
     .order("generated_at", { ascending: false });
 
-  const org = membership?.organisations as { name: string } | null;
+  const reports = reportsData as Array<{
+    id: string;
+    generated_at: string;
+    summary: Record<string, unknown> | null;
+    assessments: { target_frameworks: string[] | null; readiness_score: number | null; id: string; status: string } | null;
+  }> | null;
+
+  const org = membership?.organisations;
 
   return (
     <div className="min-h-screen bg-background">

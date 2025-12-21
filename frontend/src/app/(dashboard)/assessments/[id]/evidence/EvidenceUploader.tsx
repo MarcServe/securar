@@ -60,7 +60,7 @@ export function EvidenceUploader({ assessmentId, orgId }: EvidenceUploaderProps)
       if (uploadError) throw uploadError;
 
       // Create evidence record
-      const { error: dbError } = await supabase.from("evidence").insert({
+      const { error: dbError } = await (supabase.from("evidence") as any).insert({
         assessment_id: assessmentId,
         org_id: orgId,
         file_path: filePath,

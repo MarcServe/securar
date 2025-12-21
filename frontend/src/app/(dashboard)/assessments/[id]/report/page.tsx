@@ -26,15 +26,24 @@ export default async function ReportPage({
   if (!user) redirect("/login");
 
   // Load assessment
-  const { data: assessment, error: assessmentError } = await supabase
+  const { data: assessmentData, error: assessmentError } = await supabase
     .from("assessments")
     .select("*, organisations(*)")
     .eq("id", params.id)
     .single();
 
-  if (assessmentError || !assessment) {
+  if (assessmentError || !assessmentData) {
     notFound();
   }
+
+  // Type the assessment
+  const assessment = assessmentData as {
+    id: string;
+    status: string;
+    readiness_score: number | null;
+    score_breakdown: Record<string, unknown>;
+    organisations: { name: string } | null;
+  };
 
   // Redirect if not completed
   if (assessment.status !== "completed") {
@@ -42,7 +51,7 @@ export default async function ReportPage({
   }
 
   // Load report
-  const { data: report } = await supabase
+  const { data: reportData } = await supabase
     .from("reports")
     .select("*")
     .eq("assessment_id", params.id)
@@ -50,20 +59,37 @@ export default async function ReportPage({
     .limit(1)
     .single();
 
+  const report = reportData as { summary: Record<string, unknown> } | null;
+
   // Load risks
-  const { data: risks } = await supabase
+  const { data: risksData } = await supabase
     .from("risks")
     .select("*")
     .eq("assessment_id", params.id)
     .order("severity", { ascending: true });
 
+  const risks = risksData as Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    severity: string;
+    recommendation: string | null;
+    remediation_timeframe: string | null;
+  }> | null;
+
   // Load control results
-  const { data: controlResults } = await supabase
+  const { data: controlResultsData } = await supabase
     .from("control_results")
     .select("*, controls(*)")
     .eq("assessment_id", params.id);
 
-  const org = assessment.organisations as { name: string } | null;
+  const controlResults = controlResultsData as Array<{
+    id: string;
+    status: string;
+    controls: { domain: string } | null;
+  }> | null;
+
+  const org = assessment.organisations;
   const summary = report?.summary as ReportSummary | null;
   const breakdown = assessment.score_breakdown as ScoreBreakdown | null;
 
@@ -116,11 +142,11 @@ export default async function ReportPage({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-white/80 mb-2">Overall Readiness Score</p>
-                <p className="text-6xl font-bold">{assessment.readiness_score}%</p>
+                <p className="text-6xl font-bold">{assessment.readiness_score ?? 0}%</p>
                 <p className="text-white/70 mt-2">
-                  {assessment.readiness_score >= 80
+                  {(assessment.readiness_score ?? 0) >= 80
                     ? "Ready for certification audit"
-                    : assessment.readiness_score >= 50
+                    : (assessment.readiness_score ?? 0) >= 50
                     ? "Remediation needed before audit"
                     : "Significant work required"}
                 </p>

@@ -23,31 +23,60 @@ export default async function ReviewPage({
   if (!user) redirect("/login");
 
   // Load assessment
-  const { data: assessment, error } = await supabase
+  const { data: assessmentData, error } = await supabase
     .from("assessments")
     .select("*, organisations(*)")
     .eq("id", params.id)
     .single();
 
-  if (error || !assessment) {
+  if (error || !assessmentData) {
     notFound();
   }
 
+  const assessment = assessmentData as { id: string };
+
   // Load control results that need review (low confidence or gaps)
-  const { data: controlResults } = await supabase
+  const { data: controlResultsData } = await supabase
     .from("control_results")
     .select("*, controls(*)")
     .eq("assessment_id", params.id)
     .or("confidence.eq.low,status.eq.gap,status.eq.partial")
     .order("confidence", { ascending: true });
 
+  interface ReviewControlResult {
+    id: string;
+    status: string;
+    reasoning: string | null;
+    confidence: string | null;
+    evidence_refs: unknown;
+    controls: {
+      id: string;
+      control_code: string;
+      title: string;
+      description: string | null;
+      domain: string;
+    } | null;
+  }
+
+  const controlResults = controlResultsData as ReviewControlResult[] | null;
+
   // Load high severity risks
-  const { data: risks } = await supabase
+  const { data: risksData } = await supabase
     .from("risks")
     .select("*")
     .eq("assessment_id", params.id)
     .in("severity", ["critical", "high"])
     .limit(10);
+
+  interface ReviewRisk {
+    id: string;
+    title: string;
+    description: string | null;
+    severity: string;
+    recommendation: string | null;
+  }
+
+  const risks = risksData as ReviewRisk[] | null;
 
   const itemsForReview = [
     ...(controlResults || []).slice(0, 15),

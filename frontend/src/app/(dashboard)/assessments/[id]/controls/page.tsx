@@ -39,11 +39,14 @@ export default async function ControlsPage({
   }
 
   // Load control results with control details
-  const { data: controlResults } = await supabase
+  const { data: controlResultsData } = await supabase
     .from("control_results")
     .select("*, controls(*)")
     .eq("assessment_id", params.id)
     .order("controls(control_code)", { ascending: true });
+
+  // Type assertion for control results
+  const controlResults = controlResultsData as ControlResult[] | null;
 
   // Calculate stats (before filtering)
   const stats = {
@@ -214,12 +217,18 @@ interface Control {
   domain: string;
 }
 
+interface EvidenceRef {
+  reference?: string;
+  type?: string;
+  excerpt?: string;
+}
+
 interface ControlResult {
   id: string;
   status: string;
   reasoning: string | null;
   confidence: string | null;
-  evidence_refs: unknown;
+  evidence_refs: EvidenceRef[] | null;
   controls: Control | null;
 }
 
@@ -325,11 +334,11 @@ function ControlRow({ result }: { result: ControlResult }) {
           </div>
         </div>
 
-        {result.evidence_refs && Array.isArray(result.evidence_refs) && result.evidence_refs.length > 0 && (
+        {result.evidence_refs && result.evidence_refs.length > 0 && (
           <div className="mt-4">
             <h4 className="text-sm font-medium mb-2">Evidence References</h4>
             <div className="flex flex-wrap gap-2">
-              {(result.evidence_refs as Array<{ reference?: string; type?: string }>).slice(0, 5).map((ref, i) => (
+              {result.evidence_refs.slice(0, 5).map((ref, i) => (
                 <span
                   key={i}
                   className="text-xs bg-muted px-2 py-1 rounded"

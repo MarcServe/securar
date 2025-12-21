@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ArrowLeft } from "lucide-react";
 import { QuestionnaireWizard } from "./QuestionnaireWizard";
+import type { Question, Response } from "@/types/database";
 
 export default async function QuestionnairePage({
   params,
@@ -15,15 +16,22 @@ export default async function QuestionnairePage({
   if (!user) redirect("/login");
 
   // Load assessment
-  const { data: assessment, error: assessmentError } = await supabase
+  const { data: assessmentData, error: assessmentError } = await supabase
     .from("assessments")
     .select("*, organisations(*)")
     .eq("id", params.id)
     .single();
 
-  if (assessmentError || !assessment) {
+  if (assessmentError || !assessmentData) {
     notFound();
   }
+
+  // Type the assessment
+  const assessment = assessmentData as {
+    id: string;
+    target_frameworks: string[] | null;
+    organisations: { size_band: string | null } | null;
+  };
 
   // Load questions for this framework
   const { data: questions } = await supabase
@@ -31,16 +39,16 @@ export default async function QuestionnairePage({
     .select("*")
     .eq("framework_tag", assessment.target_frameworks?.[0] || "iso27001")
     .eq("is_active", true)
-    .order("display_order", { ascending: true });
+    .order("display_order", { ascending: true }) as { data: Question[] | null };
 
   // Load existing responses
   const { data: responses } = await supabase
     .from("responses")
     .select("*")
-    .eq("assessment_id", params.id);
+    .eq("assessment_id", params.id) as { data: Response[] | null };
 
   // Get org size to filter questions
-  const org = assessment.organisations as { size_band: string | null } | null;
+  const org = assessment.organisations;
   const orgSize = org?.size_band || "small";
 
   // Filter questions based on org size relevance

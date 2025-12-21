@@ -64,8 +64,7 @@ export function ReviewCard({ controlResult, control, assessmentId }: ReviewCardP
 
     try {
       // Update control result
-      await supabase
-        .from("control_results")
+      await (supabase.from("control_results") as any)
         .update({
           status,
           reasoning,
@@ -84,7 +83,7 @@ export function ReviewCard({ controlResult, control, assessmentId }: ReviewCardP
         .eq("id", controlResult.id);
 
       // Log the review action
-      await supabase.from("audit_logs").insert({
+      await (supabase.from("audit_logs") as any).insert({
         action: `control_${reviewAction}`,
         entity_type: "control_result",
         entity_id: controlResult.id,
