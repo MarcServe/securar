@@ -48,7 +48,8 @@ export default function SignupPage() {
 
     // If user is created and confirmed (dev mode), create organisation
     if (authData.user && authData.session) {
-      const { error: orgError } = await supabase.from("organisations").insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: orgError } = await (supabase as any).from("organisations").insert({
         name: orgName,
       });
 
@@ -56,14 +57,16 @@ export default function SignupPage() {
         console.error("Failed to create organisation:", orgError);
       } else {
         // Get the created org and add membership
-        const { data: orgs } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: orgs } = await (supabase as any)
           .from("organisations")
           .select("id")
           .eq("name", orgName)
           .single();
 
         if (orgs) {
-          await supabase.from("memberships").insert({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from("memberships").insert({
             org_id: orgs.id,
             user_id: authData.user.id,
             role: "admin",
