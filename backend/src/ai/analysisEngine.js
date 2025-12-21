@@ -7,7 +7,7 @@
 
 import { supabaseAdmin } from "../supabaseAdmin.js";
 import { parseDocument, truncateText } from "../parsers/index.js";
-import { callClaudeJSON } from "./client.js";
+import { callClaudeJSON, isAIEnabled, getAIProvider } from "./client.js";
 import { buildAIContext, summarizeContext } from "./contextBuilder.js";
 import {
   EVIDENCE_ANALYSIS_SYSTEM,
@@ -328,7 +328,8 @@ export async function runFullAnalysis(assessmentId) {
   console.log(`[AI] Context: ${summarizeContext(context)}`);
 
   // Analyze any pending evidence
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (isAIEnabled()) {
+    console.log(`[AI] Using AI provider: ${getAIProvider()}`);
     const evidenceResults = await analyzeAllEvidence(assessmentId, controls);
     console.log(`[AI] Evidence analysis: ${evidenceResults.analyzed} documents processed`);
 
@@ -343,7 +344,7 @@ export async function runFullAnalysis(assessmentId) {
 
   // Map controls (use AI if available, fallback to rule-based)
   const controlResults = [];
-  const useAI = !!process.env.ANTHROPIC_API_KEY;
+  const useAI = isAIEnabled();
 
   for (const control of controls || []) {
     const signals = buildControlSignals(

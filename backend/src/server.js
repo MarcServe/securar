@@ -7,6 +7,7 @@ import { runFullAnalysis } from "./ai/analysisEngine.js";
 import { computeReadinessScore, computeDomainScores } from "./scoring.js";
 import { deriveRisks } from "./riskEngine.js";
 import { generateReport, generateReportHTML } from "./reports/generator.js";
+import { getAIProvider, isAIEnabled } from "./ai/client.js";
 
 const app = express();
 app.use(cors({
@@ -21,11 +22,13 @@ const admin = supabaseAdmin();
 // Health Check
 // ============================================
 app.get("/health", (_req, res) => {
+  const provider = getAIProvider();
   res.json({
     ok: true,
     service: "securar-backend",
     version: "1.0.0",
-    ai_enabled: !!process.env.ANTHROPIC_API_KEY,
+    ai_enabled: isAIEnabled(),
+    ai_provider: provider || "none",
     timestamp: new Date().toISOString(),
   });
 });
@@ -146,7 +149,8 @@ app.post("/assessments/:id/run", async (req, res) => {
         readiness_score: score,
         controls_assessed: analysisResult.summary.controlsAssessed,
         risks_identified: risks.length,
-        ai_enabled: !!process.env.ANTHROPIC_API_KEY,
+        ai_enabled: isAIEnabled(),
+        ai_provider: getAIProvider(),
       },
     });
 
@@ -352,6 +356,12 @@ app.get("/assessments/:id/report/html", async (req, res) => {
 // ============================================
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
+  const provider = getAIProvider();
   console.log(`[Server] Securar Backend running on :${PORT}`);
-  console.log(`[Server] AI enabled: ${!!process.env.ANTHROPIC_API_KEY}`);
+  console.log(`[Server] AI enabled: ${isAIEnabled()}`);
+  console.log(`[Server] AI provider: ${provider || "none (using rule-based analysis)"}`);
+  
+  if (!isAIEnabled()) {
+    console.log(`[Server] ⚠️  To enable AI analysis, set OPENAI_API_KEY or ANTHROPIC_API_KEY in .env`);
+  }
 });
