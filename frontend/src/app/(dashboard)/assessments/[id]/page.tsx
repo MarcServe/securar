@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RunAssessmentButton } from "./RunAssessmentButton";
+import { ResetAssessmentButton } from "./ResetAssessmentButton";
 
 export default async function AssessmentDetailPage({
   params,
@@ -275,12 +276,36 @@ export default async function AssessmentDetailPage({
                 </p>
               </Link>
 
-              <RunAssessmentButton
-                assessmentId={params.id}
-                variant="card"
-                label="Re-run Analysis"
-                description="Update results with new evidence"
-              />
+              <Link
+                href={`/assessments/${params.id}/evidence`}
+                className="bg-card border border-border rounded-xl p-6 hover:border-primary/50 transition-colors"
+              >
+                <div className="bg-amber-500/10 rounded-lg p-3 inline-block mb-4">
+                  <Upload className="h-6 w-6 text-amber-400" />
+                </div>
+                <h3 className="font-semibold mb-1">Manage Evidence</h3>
+                <p className="text-sm text-muted-foreground">
+                  Upload or delete documents ({evidenceCount || 0} files)
+                </p>
+              </Link>
+            </div>
+
+            {/* Re-analyze Actions */}
+            <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
+              <div>
+                <h3 className="font-medium">Need to update your assessment?</h3>
+                <p className="text-sm text-muted-foreground">
+                  Upload new documents, then re-run analysis or reset completely
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <ResetAssessmentButton assessmentId={params.id} />
+                <RunAssessmentButton
+                  assessmentId={params.id}
+                  variant="button"
+                  label="Re-run Analysis"
+                />
+              </div>
             </div>
           </>
         )}

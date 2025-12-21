@@ -3,6 +3,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ArrowLeft, ArrowRight, FileText, Image, FileSpreadsheet, File } from "lucide-react";
 import { EvidenceUploader } from "./EvidenceUploader";
+import { DeleteEvidenceButton } from "./DeleteEvidenceButton";
+import { ClearAllEvidenceButton } from "./ClearAllEvidenceButton";
 import { formatDate } from "@/lib/utils";
 
 export default async function EvidencePage({
@@ -63,11 +65,17 @@ export default async function EvidencePage({
 
         {/* Evidence List */}
         <div className="bg-card border border-border rounded-xl">
-          <div className="p-6 border-b border-border">
-            <h2 className="text-lg font-semibold">Uploaded Documents</h2>
-            <p className="text-sm text-muted-foreground">
-              {evidence?.length || 0} file(s) uploaded
-            </p>
+          <div className="p-6 border-b border-border flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Uploaded Documents</h2>
+              <p className="text-sm text-muted-foreground">
+                {evidence?.length || 0} file(s) uploaded
+              </p>
+            </div>
+            <ClearAllEvidenceButton 
+              assessmentId={params.id} 
+              evidenceCount={evidence?.length || 0} 
+            />
           </div>
 
           {evidence && evidence.length > 0 ? (
@@ -87,6 +95,11 @@ export default async function EvidencePage({
                     </p>
                   </div>
                   <StatusBadge status={file.status} />
+                  <DeleteEvidenceButton
+                    evidenceId={file.id}
+                    filePath={file.file_path}
+                    fileName={file.file_name}
+                  />
                 </div>
               ))}
             </div>

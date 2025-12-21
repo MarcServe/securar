@@ -200,7 +200,9 @@ export default async function DashboardPage() {
           </Link>
 
           <Link
-            href="/evidence"
+            href={assessments && assessments.length > 0 
+              ? `/assessments/${assessments[0].id}/evidence` 
+              : "/assessments/new"}
             className="bg-card border border-border rounded-xl p-6 hover:border-primary/50 transition-colors group"
           >
             <div className="bg-emerald-500/10 rounded-lg p-3 inline-block mb-4 group-hover:bg-emerald-500/20 transition-colors">
@@ -208,7 +210,9 @@ export default async function DashboardPage() {
             </div>
             <h3 className="font-semibold mb-1">Upload Evidence</h3>
             <p className="text-sm text-muted-foreground">
-              Add policies, procedures, and documentation
+              {assessments && assessments.length > 0 
+                ? "Add policies, procedures, and documentation"
+                : "Create an assessment first to upload evidence"}
             </p>
           </Link>
 
