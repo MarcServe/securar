@@ -172,47 +172,71 @@ export default async function AssessmentDetailPage({
         {/* Results (if completed) */}
         {assessment.status === "completed" && (
           <>
-            {/* Score Summary */}
+            {/* Score Summary - Clickable Cards */}
             <div className="grid md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-card border border-border rounded-xl p-6">
+              <Link
+                href={`/assessments/${params.id}/report`}
+                className="bg-card border border-border rounded-xl p-6 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer group"
+              >
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="bg-primary/10 rounded-lg p-2">
+                  <div className="bg-primary/10 rounded-lg p-2 group-hover:bg-primary/20 transition-colors">
                     <BarChart3 className="h-5 w-5 text-primary" />
                   </div>
                   <span className="text-sm text-muted-foreground">Readiness Score</span>
                 </div>
                 <p className="text-3xl font-bold">{assessment.readiness_score}%</p>
-              </div>
+                <p className="text-xs text-muted-foreground mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  View Report →
+                </p>
+              </Link>
 
-              <div className="bg-card border border-border rounded-xl p-6">
+              <Link
+                href={`/assessments/${params.id}/controls?status=compliant`}
+                className="bg-card border border-border rounded-xl p-6 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all cursor-pointer group"
+              >
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="bg-emerald-500/10 rounded-lg p-2">
+                  <div className="bg-emerald-500/10 rounded-lg p-2 group-hover:bg-emerald-500/20 transition-colors">
                     <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                   </div>
                   <span className="text-sm text-muted-foreground">Compliant</span>
                 </div>
                 <p className="text-3xl font-bold">{statusCounts.compliant}</p>
-              </div>
+                <p className="text-xs text-muted-foreground mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  View Controls →
+                </p>
+              </Link>
 
-              <div className="bg-card border border-border rounded-xl p-6">
+              <Link
+                href={`/assessments/${params.id}/controls?status=partial`}
+                className="bg-card border border-border rounded-xl p-6 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all cursor-pointer group"
+              >
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="bg-amber-500/10 rounded-lg p-2">
+                  <div className="bg-amber-500/10 rounded-lg p-2 group-hover:bg-amber-500/20 transition-colors">
                     <Clock className="h-5 w-5 text-amber-400" />
                   </div>
                   <span className="text-sm text-muted-foreground">Partial</span>
                 </div>
                 <p className="text-3xl font-bold">{statusCounts.partial}</p>
-              </div>
+                <p className="text-xs text-muted-foreground mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  View Controls →
+                </p>
+              </Link>
 
-              <div className="bg-card border border-border rounded-xl p-6">
+              <Link
+                href={`/assessments/${params.id}/controls?status=gap`}
+                className="bg-card border border-border rounded-xl p-6 hover:border-rose-500/50 hover:bg-rose-500/5 transition-all cursor-pointer group"
+              >
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="bg-rose-500/10 rounded-lg p-2">
+                  <div className="bg-rose-500/10 rounded-lg p-2 group-hover:bg-rose-500/20 transition-colors">
                     <AlertTriangle className="h-5 w-5 text-rose-400" />
                   </div>
                   <span className="text-sm text-muted-foreground">Gaps</span>
                 </div>
                 <p className="text-3xl font-bold">{statusCounts.gap}</p>
-              </div>
+                <p className="text-xs text-muted-foreground mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  View Controls →
+                </p>
+              </Link>
             </div>
 
             {/* Top Risks */}

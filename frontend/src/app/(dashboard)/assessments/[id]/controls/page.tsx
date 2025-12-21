@@ -9,15 +9,20 @@ import {
   Clock,
   HelpCircle,
   ChevronDown,
+  Filter,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default async function ControlsPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams: { status?: string };
 }) {
   const supabase = createClient();
+  const statusFilter = searchParams.status;
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -40,8 +45,22 @@ export default async function ControlsPage({
     .eq("assessment_id", params.id)
     .order("controls(control_code)", { ascending: true });
 
+  // Calculate stats (before filtering)
+  const stats = {
+    total: controlResults?.length || 0,
+    compliant: controlResults?.filter((r) => r.status === "compliant").length || 0,
+    partial: controlResults?.filter((r) => r.status === "partial").length || 0,
+    gap: controlResults?.filter((r) => r.status === "gap").length || 0,
+    unknown: controlResults?.filter((r) => r.status === "unknown").length || 0,
+  };
+
+  // Apply status filter
+  const filteredResults = statusFilter
+    ? (controlResults || []).filter((r) => r.status === statusFilter)
+    : controlResults || [];
+
   // Group by domain
-  const byDomain = (controlResults || []).reduce((acc, cr) => {
+  const byDomain = filteredResults.reduce((acc, cr) => {
     const control = cr.controls as Control | null;
     const domain = control?.domain || "Other";
     if (!acc[domain]) {
@@ -53,13 +72,12 @@ export default async function ControlsPage({
 
   const domains = Object.keys(byDomain).sort();
 
-  // Calculate stats
-  const stats = {
-    total: controlResults?.length || 0,
-    compliant: controlResults?.filter((r) => r.status === "compliant").length || 0,
-    partial: controlResults?.filter((r) => r.status === "partial").length || 0,
-    gap: controlResults?.filter((r) => r.status === "gap").length || 0,
-    unknown: controlResults?.filter((r) => r.status === "unknown").length || 0,
+  // Get filter label
+  const filterLabels: Record<string, string> = {
+    compliant: "Compliant",
+    partial: "Partial",
+    gap: "Gaps",
+    unknown: "Unknown",
   };
 
   return (
@@ -106,6 +124,50 @@ export default async function ControlsPage({
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
+        {/* Active Filter Banner */}
+        {statusFilter && (
+          <div className="mb-6 flex items-center justify-between bg-primary/10 border border-primary/20 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-primary" />
+              <span className="text-sm">
+                Showing <strong>{filterLabels[statusFilter] || statusFilter}</strong> controls ({filteredResults.length} of {stats.total})
+              </span>
+            </div>
+            <Link
+              href={`/assessments/${params.id}/controls`}
+              className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors"
+            >
+              <X className="h-4 w-4" />
+              Clear filter
+            </Link>
+          </div>
+        )}
+
+        {/* Filter Buttons */}
+        {!statusFilter && stats.total > 0 && (
+          <div className="mb-6 flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-muted-foreground mr-2">Quick filters:</span>
+            <Link
+              href={`/assessments/${params.id}/controls?status=compliant`}
+              className="px-3 py-1.5 text-sm bg-emerald-500/10 text-emerald-400 rounded-full hover:bg-emerald-500/20 transition-colors"
+            >
+              Compliant ({stats.compliant})
+            </Link>
+            <Link
+              href={`/assessments/${params.id}/controls?status=partial`}
+              className="px-3 py-1.5 text-sm bg-amber-500/10 text-amber-400 rounded-full hover:bg-amber-500/20 transition-colors"
+            >
+              Partial ({stats.partial})
+            </Link>
+            <Link
+              href={`/assessments/${params.id}/controls?status=gap`}
+              className="px-3 py-1.5 text-sm bg-rose-500/10 text-rose-400 rounded-full hover:bg-rose-500/20 transition-colors"
+            >
+              Gaps ({stats.gap})
+            </Link>
+          </div>
+        )}
+
         {domains.map((domain) => (
           <DomainSection
             key={domain}
@@ -114,7 +176,23 @@ export default async function ControlsPage({
           />
         ))}
 
-        {(!controlResults || controlResults.length === 0) && (
+        {filteredResults.length === 0 && statusFilter && (
+          <div className="text-center py-12">
+            <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">No {filterLabels[statusFilter] || statusFilter} controls</h2>
+            <p className="text-muted-foreground mb-4">
+              There are no controls with this status.
+            </p>
+            <Link
+              href={`/assessments/${params.id}/controls`}
+              className="text-primary hover:underline"
+            >
+              View all controls
+            </Link>
+          </div>
+        )}
+
+        {(!controlResults || controlResults.length === 0) && !statusFilter && (
           <div className="text-center py-12">
             <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">No control results yet</h2>
