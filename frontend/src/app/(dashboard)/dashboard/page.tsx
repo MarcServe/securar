@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import {
-  Shield,
+  Building2,
   Plus,
   FileText,
   BarChart3,
@@ -58,13 +58,15 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card/50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Company Header */}
+        <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <Shield className="h-8 w-8 text-primary" />
+            <div className="bg-blue-500/10 rounded-lg p-3">
+              <Building2 className="h-8 w-8 text-blue-400" />
+            </div>
             <div>
-              <h1 className="font-semibold">{org?.name || "Your Organisation"}</h1>
+              <h1 className="text-xl font-semibold">{org?.name || "Your Organisation"}</h1>
               <p className="text-sm text-muted-foreground">Security Dashboard</p>
             </div>
           </div>
@@ -76,9 +78,6 @@ export default async function DashboardPage() {
             New Assessment
           </Link>
         </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Quick Stats */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <div className="bg-card border border-border rounded-xl p-6">
