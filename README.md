@@ -95,6 +95,8 @@ cd securar
    - Run `supabase/migrations/0001_init.sql`
    - Run `supabase/migrations/0002_seed_iso27001_controls.sql`
    - Run `supabase/migrations/0003_seed_questions.sql`
+   - Run `supabase/migrations/0004_fix_org_insert_policy.sql` (if present)
+   - Run `supabase/migrations/0005_report_purchases.sql` (for report paywall)
 
 3. Create a Storage bucket:
    - Go to Storage in Supabase Dashboard
@@ -138,6 +140,10 @@ Edit `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # For Stripe webhook & report unlock
+STRIPE_SECRET_KEY=sk_...                         # Stripe secret key
+STRIPE_WEBHOOK_SECRET=whsec_...                  # Stripe webhook signing secret
+STRIPE_REPORT_PRICE_ID=price_...                 # Stripe Price ID for "Report Unlock" product
 ```
 
 Install and run:

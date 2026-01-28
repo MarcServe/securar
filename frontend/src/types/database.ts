@@ -379,6 +379,29 @@ export interface Database {
           created_by?: string | null;
         };
       };
+      report_purchases: {
+        Row: {
+          id: string;
+          assessment_id: string;
+          user_id: string | null;
+          stripe_session_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          assessment_id: string;
+          user_id?: string | null;
+          stripe_session_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          assessment_id?: string;
+          user_id?: string | null;
+          stripe_session_id?: string | null;
+          created_at?: string;
+        };
+      };
       audit_logs: {
         Row: {
           id: string;

@@ -140,7 +140,7 @@ export default async function ReportsPage() {
                         <ArrowRight className="h-4 w-4" />
                       </Link>
                       <a
-                        href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"}/assessments/${assessment?.id}/report/html`}
+                        href={`/api/assessments/${assessment?.id}/report/html`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"

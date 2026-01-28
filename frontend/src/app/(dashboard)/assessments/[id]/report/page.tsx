@@ -14,12 +14,22 @@ import {
   Target,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
+import { UnlockReportButton } from "./UnlockReportButton";
+import { VerifySessionHandler } from "./VerifySessionHandler";
 
 export default async function ReportPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: Promise<{ session_id?: string }> | { session_id?: string };
 }) {
+  const rawSp = searchParams ?? {};
+  const sp: { session_id?: string } =
+    "then" in rawSp && typeof (rawSp as Promise<{ session_id?: string }>).then === "function"
+      ? await (rawSp as Promise<{ session_id?: string }>)
+      : (rawSp as { session_id?: string });
+  const sessionId = sp?.session_id ?? null;
   const supabase = createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -93,6 +103,14 @@ export default async function ReportPage({
   const summary = report?.summary as ReportSummary | null;
   const breakdown = assessment.score_breakdown as ScoreBreakdown | null;
 
+  const { data: purchaseData } = await supabase
+    .from("report_purchases")
+    .select("id")
+    .eq("assessment_id", params.id)
+    .limit(1)
+    .maybeSingle();
+  const purchased = !!purchaseData;
+
   // Group controls by domain
   const controlsByDomain = (controlResults || []).reduce((acc, cr) => {
     const domain = (cr.controls as { domain: string } | null)?.domain || "Other";
@@ -107,6 +125,7 @@ export default async function ReportPage({
 
   return (
     <div className="min-h-screen bg-background">
+      {sessionId && <VerifySessionHandler sessionId={sessionId} />}
       {/* Header */}
       <header className="border-b border-border bg-card/50 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-6 py-4">
@@ -122,15 +141,19 @@ export default async function ReportPage({
               <h1 className="text-xl font-bold">Security Assessment Report</h1>
               <p className="text-muted-foreground">{org?.name}</p>
             </div>
-            <a
-              href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"}/assessments/${params.id}/report/html`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
-            >
-              <Download className="h-4 w-4" />
-              Download PDF
-            </a>
+            {purchased ? (
+              <a
+                href={`/api/assessments/${params.id}/report/html`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                Download PDF
+              </a>
+            ) : (
+              <UnlockReportButton assessmentId={params.id} />
+            )}
           </div>
         </div>
       </header>
@@ -187,25 +210,39 @@ export default async function ReportPage({
 
         {/* Executive Summary */}
         {summary?.executive_summary && (
-          <div className="bg-card border border-border rounded-xl p-6">
+          <div className="bg-card border border-border rounded-xl p-6 relative">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Executive Summary
             </h2>
-            <p className="text-lg font-medium mb-3">
-              {summary.executive_summary.headline}
-            </p>
-            <p className="text-muted-foreground mb-4">
-              {summary.executive_summary.summary}
-            </p>
-            {summary.executive_summary.key_findings && (
-              <div>
-                <h3 className="font-medium mb-2">Key Findings</h3>
-                <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                  {summary.executive_summary.key_findings.map((finding: string, i: number) => (
-                    <li key={i}>{finding}</li>
-                  ))}
-                </ul>
+            {purchased ? (
+              <>
+                <p className="text-lg font-medium mb-3">
+                  {summary.executive_summary.headline}
+                </p>
+                <p className="text-muted-foreground mb-4">
+                  {summary.executive_summary.summary}
+                </p>
+                {summary.executive_summary.key_findings && (
+                  <div>
+                    <h3 className="font-medium mb-2">Key Findings</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      {summary.executive_summary.key_findings.map((finding: string, i: number) => (
+                        <li key={i}>{finding}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="relative">
+                <p className="text-muted-foreground mb-2">
+                  Your executive summary is ready with headline, summary, and key findings.
+                </p>
+                <div className="h-24 rounded-lg bg-muted/50 blur-sm select-none" aria-hidden />
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-[2px]">
+                  <p className="text-sm font-medium text-muted-foreground">Unlock to read full summary</p>
+                </div>
               </div>
             )}
           </div>
@@ -213,39 +250,58 @@ export default async function ReportPage({
 
         {/* Top Risks */}
         <div className="bg-card border border-border rounded-xl">
-          <div className="p-6 border-b border-border">
+          <div className="p-6 border-b border-border flex items-center justify-between">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-400" />
               Priority Risks
             </h2>
-          </div>
-          <div className="divide-y divide-border">
-            {(risks || []).slice(0, 10).map((risk) => (
-              <div key={risk.id} className="p-4">
-                <div className="flex items-start gap-4">
-                  <SeverityBadge severity={risk.severity} />
-                  <div className="flex-1">
-                    <p className="font-medium">{risk.title}</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {risk.description}
-                    </p>
-                    {risk.recommendation && (
-                      <p className="text-sm mt-2">
-                        <span className="font-medium text-primary">Recommendation:</span>{" "}
-                        {risk.recommendation}
-                      </p>
-                    )}
-                  </div>
-                  <TimeframeBadge timeframe={risk.remediation_timeframe} />
-                </div>
-              </div>
-            ))}
-            {(!risks || risks.length === 0) && (
-              <div className="p-8 text-center text-muted-foreground">
-                No risks identified
-              </div>
+            {!purchased && risks && risks.length > 0 && (
+              <span className="text-sm text-muted-foreground">{risks.length} risks identified</span>
             )}
           </div>
+          {purchased ? (
+            <div className="divide-y divide-border">
+              {(risks || []).slice(0, 10).map((risk) => (
+                <div key={risk.id} className="p-4">
+                  <div className="flex items-start gap-4">
+                    <SeverityBadge severity={risk.severity} />
+                    <div className="flex-1">
+                      <p className="font-medium">{risk.title}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {risk.description}
+                      </p>
+                      {risk.recommendation && (
+                        <p className="text-sm mt-2">
+                          <span className="font-medium text-primary">Recommendation:</span>{" "}
+                          {risk.recommendation}
+                        </p>
+                      )}
+                    </div>
+                    <TimeframeBadge timeframe={risk.remediation_timeframe} />
+                  </div>
+                </div>
+              ))}
+              {(!risks || risks.length === 0) && (
+                <div className="p-8 text-center text-muted-foreground">
+                  No risks identified
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-6 relative">
+              <div className="space-y-3 blur-sm select-none pointer-events-none" aria-hidden>
+                {(risks || []).slice(0, 5).map((risk) => (
+                  <div key={risk.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                    <span className="w-16 h-5 rounded bg-muted" />
+                    <span className="flex-1 h-4 rounded bg-muted" />
+                  </div>
+                ))}
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center rounded-b-xl bg-background/60 backdrop-blur-[2px]">
+                <p className="text-sm font-medium text-muted-foreground">Unlock to view all risks and recommendations</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Domain Breakdown */}
@@ -266,9 +322,13 @@ export default async function ReportPage({
                   <div key={domain}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">{domain}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {stats.compliant}/{stats.total} compliant • {score}%
-                      </span>
+                      {purchased ? (
+                        <span className="text-sm text-muted-foreground">
+                          {stats.compliant}/{stats.total} compliant • {score}%
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Unlock for details</span>
+                      )}
                     </div>
                     <div className="flex h-3 rounded-full overflow-hidden bg-muted">
                       <div
@@ -299,24 +359,48 @@ export default async function ReportPage({
               Remediation Roadmap
             </h2>
           </div>
-          <div className="p-6 grid md:grid-cols-3 gap-6">
-            <TimeframeSection
-              title="30-Day Priority"
-              description="Critical actions"
-              risks={(risks || []).filter((r) => r.remediation_timeframe === "30-day")}
-            />
-            <TimeframeSection
-              title="60-Day Actions"
-              description="High-priority items"
-              risks={(risks || []).filter((r) => r.remediation_timeframe === "60-day")}
-            />
-            <TimeframeSection
-              title="90-Day Actions"
-              description="Foundation strengthening"
-              risks={(risks || []).filter((r) => r.remediation_timeframe === "90-day")}
-            />
-          </div>
+          {purchased ? (
+            <div className="p-6 grid md:grid-cols-3 gap-6">
+              <TimeframeSection
+                title="30-Day Priority"
+                description="Critical actions"
+                risks={(risks || []).filter((r) => r.remediation_timeframe === "30-day")}
+              />
+              <TimeframeSection
+                title="60-Day Actions"
+                description="High-priority items"
+                risks={(risks || []).filter((r) => r.remediation_timeframe === "60-day")}
+              />
+              <TimeframeSection
+                title="90-Day Actions"
+                description="Foundation strengthening"
+                risks={(risks || []).filter((r) => r.remediation_timeframe === "90-day")}
+              />
+            </div>
+          ) : (
+            <div className="p-6 relative">
+              <div className="grid md:grid-cols-3 gap-6 blur-sm select-none pointer-events-none" aria-hidden>
+                <div className="bg-muted/30 rounded-lg p-4 h-32" />
+                <div className="bg-muted/30 rounded-lg p-4 h-32" />
+                <div className="bg-muted/30 rounded-lg p-4 h-32" />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center rounded-b-xl bg-background/60 backdrop-blur-[2px] pt-16 pb-6 px-6">
+                <p className="text-sm font-medium text-muted-foreground text-center">
+                  30 / 60 / 90-day roadmap ready — Unlock to view prioritised actions
+                </p>
+              </div>
+            </div>
+          )}
         </div>
+
+        {!purchased && (
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-8 flex flex-col items-center gap-4 text-center">
+            <p className="text-lg font-medium">
+              Your full report is ready. Unlock once to view and download everything.
+            </p>
+            <UnlockReportButton assessmentId={params.id} />
+          </div>
+        )}
 
         {/* Disclaimer */}
         <div className="bg-muted/50 rounded-xl p-6 text-sm text-muted-foreground">
