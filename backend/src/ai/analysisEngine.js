@@ -238,9 +238,13 @@ export async function mapControlWithAI(control, signals, context) {
  * @returns {Object} Signals for the control
  */
 export function buildControlSignals(control, responses, evidence, questions) {
+  if (!Array.isArray(responses)) responses = [];
+  if (!Array.isArray(evidence)) evidence = [];
+  if (!Array.isArray(questions)) questions = [];
+
   // Find relevant questionnaire responses
   const relevantResponses = [];
-  
+
   for (const response of responses) {
     const question = questions.find((q) => q.id === response.question_id);
     if (question) {
@@ -392,6 +396,8 @@ export async function runFullAnalysis(assessmentId) {
  * Rule-based control mapping fallback
  */
 function mapControlRuleBased(control, signals) {
+  try {
+  if (!signals || !Array.isArray(signals.evidence)) signals = { evidence: [], responses: [] };
   const hasEvidence = signals.evidence.length > 0;
   const hasResponses = signals.responses.length > 0;
 
@@ -445,5 +451,15 @@ function mapControlRuleBased(control, signals) {
       ? ["Additional documentation may strengthen this assessment"]
       : [],
   };
+  } catch (err) {
+    console.error("[analysisEngine] mapControlRuleBased error:", err);
+    return {
+      status: "unknown",
+      confidence: "low",
+      reasoning: "Rule-based assessment failed. Manual review required.",
+      source_inputs: [],
+      evidence_gaps: ["Assessment error - manual review needed"],
+    };
+  }
 }
 

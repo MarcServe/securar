@@ -46,10 +46,19 @@ serve(async (req) => {
 
     // Parse request body
     const { assessment_id } = await req.json();
-    
+
     if (!assessment_id) {
       return new Response(
         JSON.stringify({ ok: false, error: "Missing assessment_id" }),
+        { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } }
+      );
+    }
+
+    // Validate UUID format before using in URL construction
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(String(assessment_id))) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Invalid assessment ID format" }),
         { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } }
       );
     }
@@ -102,7 +111,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("Edge function error:", e);
     return new Response(
-      JSON.stringify({ ok: false, error: String(e) }),
+      JSON.stringify({ ok: false, error: "Assessment run failed. Please try again." }),
       { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
     );
   }

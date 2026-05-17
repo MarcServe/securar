@@ -6,7 +6,13 @@ import mammoth from "mammoth";
  * @param {Buffer} buffer - DOCX file buffer
  * @returns {Promise<Object>} Parsed document data
  */
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 export async function parseDOCX(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length > MAX_FILE_SIZE) {
+    return { success: false, error: "File exceeds 10MB size limit or is invalid", text: "" };
+  }
+
   try {
     const result = await mammoth.extractRawText({ buffer });
 
@@ -20,7 +26,7 @@ export async function parseDOCX(buffer) {
     console.error("DOCX parsing error:", error);
     return {
       success: false,
-      error: error.message,
+      error: "Failed to parse DOCX",
       text: "",
     };
   }
@@ -33,6 +39,10 @@ export async function parseDOCX(buffer) {
  * @returns {Promise<Object>} Parsed document with HTML
  */
 export async function parseDOCXWithStructure(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length > MAX_FILE_SIZE) {
+    return { success: false, error: "File exceeds 10MB size limit or is invalid", text: "", html: "" };
+  }
+
   try {
     const [textResult, htmlResult] = await Promise.all([
       mammoth.extractRawText({ buffer }),
@@ -49,7 +59,7 @@ export async function parseDOCXWithStructure(buffer) {
     console.error("DOCX parsing error:", error);
     return {
       success: false,
-      error: error.message,
+      error: "Failed to parse DOCX",
       text: "",
       html: "",
     };

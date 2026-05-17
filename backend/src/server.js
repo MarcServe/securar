@@ -11,12 +11,57 @@ import { getAIProvider, isAIEnabled } from "./ai/client.js";
 
 const app = express();
 app.use(cors({
-  origin: true, // Allow all origins in development
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-shared-secret"],
 }));
 app.use(express.json({ limit: "10mb" }));
 
 const admin = supabaseAdmin();
+
+// Auth middleware — verifies Supabase JWT or shared backend secret
+async function requireAuth(req, res, next) {
+  // Allow internal calls with shared secret
+  const sharedSecret = process.env.NODE_BACKEND_SECRET;
+  if (sharedSecret && req.headers["x-shared-secret"] === sharedSecret) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ ok: false, error: "Authentication required" });
+  }
+  const token = authHeader.split(" ")[1];
+  const { data: { user }, error } = await admin.auth.getUser(token);
+  if (error || !user) {
+    return res.status(401).json({ ok: false, error: "Invalid or expired token" });
+  }
+  req.user = user;
+  next();
+}
+
+// In-memory rate limiter — use Redis in production for distributed deployments
+const rateLimitMap = new Map();
+function rateLimitMiddleware(maxRequests = 20, windowMs = 60_000) {
+  return (req, res, next) => {
+    const key = req.user?.id || req.ip;
+    const now = Date.now();
+    const entry = rateLimitMap.get(key);
+    if (!entry || now > entry.resetAt) {
+      rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    if (entry.count >= maxRequests) {
+      return res.status(429).json({ ok: false, error: "Too many requests. Please try again later." });
+    }
+    entry.count++;
+    next();
+  };
+}
+
+app.use("/assessments", requireAuth);
+app.use("/evidence", requireAuth);
 
 // ============================================
 // Health Check
@@ -36,7 +81,7 @@ app.get("/health", (_req, res) => {
 // ============================================
 // Run Assessment Analysis
 // ============================================
-app.post("/assessments/:id/run", async (req, res) => {
+app.post("/assessments/:id/run", rateLimitMiddleware(5, 60_000), async (req, res) => {
   const paramsSchema = z.object({ id: z.string().uuid() });
   
   let assessmentId;
@@ -176,7 +221,7 @@ app.post("/assessments/:id/run", async (req, res) => {
 
     return res.status(500).json({
       ok: false,
-      error: err?.message || "Assessment analysis failed",
+      error: "Assessment analysis failed. Please try again.",
     });
   }
 });
@@ -226,7 +271,7 @@ app.post("/evidence/:id/process", async (req, res) => {
     console.error("[Server] Evidence processing error:", err);
     return res.status(500).json({
       ok: false,
-      error: err?.message || "Evidence processing failed",
+      error: "Evidence processing failed. Please try again.",
     });
   }
 });
@@ -276,7 +321,7 @@ app.get("/assessments/:id/status", async (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err?.message });
+    return res.status(500).json({ ok: false, error: "Failed to load assessment status." });
   }
 });
 
@@ -305,7 +350,7 @@ app.post("/assessments/:id/report", async (req, res) => {
     console.error("[Server] Report generation error:", err);
     return res.status(500).json({
       ok: false,
-      error: err?.message || "Report generation failed",
+      error: "Report generation failed. Please try again.",
     });
   }
 });
@@ -346,7 +391,7 @@ app.get("/assessments/:id/report/html", async (req, res) => {
     console.error("[Server] Report HTML error:", err);
     return res.status(500).json({
       ok: false,
-      error: err?.message || "Report generation failed",
+      error: "Report generation failed. Please try again.",
     });
   }
 });

@@ -6,9 +6,19 @@ import pdf from "pdf-parse";
  * @param {Buffer} buffer - PDF file buffer
  * @returns {Promise<Object>} Parsed document data
  */
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 export async function parsePDF(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length > MAX_FILE_SIZE) {
+    return { success: false, error: "File exceeds 10MB size limit or is invalid", text: "" };
+  }
+
   try {
-    const data = await pdf(buffer);
+    const parsePromise = pdf(buffer);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("PDF parse timeout")), 30_000)
+    );
+    const data = await Promise.race([parsePromise, timeoutPromise]);
 
     return {
       success: true,
@@ -24,7 +34,7 @@ export async function parsePDF(buffer) {
     console.error("PDF parsing error:", error);
     return {
       success: false,
-      error: error.message,
+      error: "Failed to parse PDF",
       text: "",
     };
   }
@@ -46,7 +56,7 @@ export function extractPDFSections(text) {
   // Common section header patterns
   const headerPatterns = [
     /^(\d+\.?\s+[A-Z][A-Za-z\s]+)$/,           // "1. Introduction" or "1 Introduction"
-    /^([A-Z][A-Z\s]+)$/,                         // "INTRODUCTION"
+    /^[A-Z][A-Z ]{0,100}$/,                        // "INTRODUCTION" (bounded to prevent ReDoS)
     /^(Chapter\s+\d+[:\s]+.+)$/i,                // "Chapter 1: Introduction"
     /^(Section\s+\d+[:\s]+.+)$/i,                // "Section 1: Introduction"
   ];

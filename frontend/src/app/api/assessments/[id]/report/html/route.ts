@@ -22,6 +22,7 @@ export async function GET(
     .from("report_purchases")
     .select("id")
     .eq("assessment_id", assessmentId)
+    .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
 

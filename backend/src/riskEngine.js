@@ -48,6 +48,11 @@ const INDUSTRY_RISK_MULTIPLIER = {
  * @returns {Array} Risk records
  */
 export function deriveRisks(gapControls, org) {
+  try {
+  if (!Array.isArray(gapControls)) {
+    console.error("[riskEngine] deriveRisks called with non-array gapControls");
+    return [];
+  }
   const risks = [];
   const industry = org?.industry?.toLowerCase() || "other";
   const industryMultiplier = INDUSTRY_RISK_MULTIPLIER[industry] || 1.0;
@@ -90,6 +95,10 @@ export function deriveRisks(gapControls, org) {
   risks.push(...lowPriority.slice(0, 3));
 
   return risks;
+  } catch (err) {
+    console.error("[riskEngine] deriveRisks error:", err);
+    return [];
+  }
 }
 
 /**
