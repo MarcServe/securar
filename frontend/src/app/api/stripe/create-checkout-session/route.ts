@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
       ],
       client_reference_id: assessmentId,
       metadata: { assessment_id: assessmentId, user_id: user.id },
+      allow_promotion_codes: true,
       success_url: `${origin}/assessments/${assessmentId}/report?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/assessments/${assessmentId}/report`,
       customer_email: user.email ?? undefined,
