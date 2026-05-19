@@ -1,12 +1,23 @@
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+/** Stripe flexible-billing subs often omit top-level current_period_end — use item/trial fields. */
+export function getSubscriptionPeriodEndUnix(sub: Stripe.Subscription): number | null {
+  const legacy = (sub as Stripe.Subscription & { current_period_end?: number })
+    .current_period_end;
+  if (typeof legacy === "number") return legacy;
+  if (typeof sub.trial_end === "number") return sub.trial_end;
+  const itemEnd = sub.items?.data?.[0]?.current_period_end;
+  if (typeof itemEnd === "number") return itemEnd;
+  if (typeof sub.cancel_at === "number") return sub.cancel_at;
+  return null;
+}
+
 function subscriptionRowFromStripe(
   orgId: string,
   sub: Stripe.Subscription
 ): Record<string, unknown> {
-  const periodEnd = (sub as Stripe.Subscription & { current_period_end: number })
-    .current_period_end;
+  const periodEndUnix = getSubscriptionPeriodEndUnix(sub);
   return {
     org_id: orgId,
     stripe_customer_id:
@@ -14,7 +25,9 @@ function subscriptionRowFromStripe(
     stripe_subscription_id: sub.id,
     plan: "pro",
     status: sub.status,
-    current_period_end: new Date(periodEnd * 1000).toISOString(),
+    current_period_end: periodEndUnix
+      ? new Date(periodEndUnix * 1000).toISOString()
+      : null,
     cancel_at_period_end: sub.cancel_at_period_end,
     updated_at: new Date().toISOString(),
   };
