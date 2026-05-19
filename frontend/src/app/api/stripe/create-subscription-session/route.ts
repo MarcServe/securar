@@ -5,6 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrProvisionMembership } from "@/lib/provision-org";
 import { getTrialDays } from "@/lib/trial-config";
 
+function isPlaceholderStripeCustomer(id: string): boolean {
+  return id.startsWith("explore_");
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient();
@@ -38,13 +42,19 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existing } = await (admin.from("subscriptions") as any)
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, status, stripe_subscription_id, current_period_end")
       .eq("org_id", orgId)
       .maybeSingle();
 
+    const onExplorationTrial =
+      existing?.status === "trialing" &&
+      !existing?.stripe_subscription_id?.startsWith("sub_");
+
     let customerId: string;
-    if (existing?.stripe_customer_id) {
-      customerId = existing.stripe_customer_id;
+    const storedCustomerId = existing?.stripe_customer_id as string | undefined;
+
+    if (storedCustomerId && !isPlaceholderStripeCustomer(storedCustomerId)) {
+      customerId = storedCustomerId;
     } else {
       const customer = await stripe.customers.create({
         email: user.email ?? undefined,
@@ -52,12 +62,25 @@ export async function POST(req: NextRequest) {
         metadata: { org_id: orgId },
       });
       customerId = customer.id;
+
+      // Replace exploration placeholder with a real Stripe customer
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (admin.from("subscriptions") as any)
+        .update({
+          stripe_customer_id: customerId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("org_id", orgId);
     }
 
     const origin = req.headers.get("origin") || req.nextUrl.origin;
     const body = await req.json().catch(() => ({}));
     const fromChoosePlan = body?.source === "choose-plan";
     const trialDays = getTrialDays();
+
+    // Don't stack a Stripe trial on top of the in-app exploration trial
+    const stripeTrialDays =
+      trialDays > 0 && !onExplorationTrial ? trialDays : undefined;
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -66,17 +89,18 @@ export async function POST(req: NextRequest) {
       metadata: { org_id: orgId },
       subscription_data: {
         metadata: { org_id: orgId },
-        ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
+        ...(stripeTrialDays ? { trial_period_days: stripeTrialDays } : {}),
       },
-      success_url: `${origin}/settings/billing?subscribed=true${trialDays > 0 ? "&trial=true" : ""}`,
-      cancel_url: fromChoosePlan ? `${origin}/choose-plan` : `${origin}/pricing`,
+      success_url: `${origin}/settings/billing?subscribed=true${onExplorationTrial || stripeTrialDays ? "&trial=true" : ""}`,
+      cancel_url: fromChoosePlan ? `${origin}/choose-plan` : `${origin}/settings/billing`,
     });
 
     return NextResponse.json({ url: session.url });
   } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown error";
     console.error("[create-subscription-session]", e);
     return NextResponse.json(
-      { error: "Failed to create subscription session" },
+      { error: "Failed to create subscription session", detail: message },
       { status: 500 }
     );
   }
