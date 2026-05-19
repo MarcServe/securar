@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { User } from "@supabase/supabase-js";
 import { getTrialDays } from "@/lib/trial-config";
+import { isRealStripeCustomerId } from "@/lib/stripe-customer";
 
 export function defaultOrgName(user: User): string {
   const fromMeta = user.user_metadata?.org_name as string | undefined;
@@ -69,7 +70,10 @@ export async function ensureExplorationTrial(orgId: string): Promise<void> {
   // Paid Stripe subscription — do not overwrite
   if (existing?.stripe_subscription_id?.startsWith("sub_")) return;
 
-  // Active exploration or Stripe trial still in progress
+  // Real Stripe customer already linked (checkout started) — do not reset trial row
+  if (isRealStripeCustomerId(existing?.stripe_customer_id as string | undefined)) return;
+
+  // Active exploration trial still running
   if (existing?.status === "trialing" && existing.current_period_end) {
     if (new Date(existing.current_period_end) > new Date()) return;
   }
@@ -90,9 +94,8 @@ export async function ensureExplorationTrial(orgId: string): Promise<void> {
   const trialEnd = new Date();
   trialEnd.setDate(trialEnd.getDate() + getTrialDays());
 
-  const row = {
+  const row: Record<string, unknown> = {
     org_id: orgId,
-    stripe_customer_id: existing?.stripe_customer_id ?? `explore_${orgId}`,
     stripe_subscription_id: existing?.stripe_subscription_id ?? null,
     plan: "pro",
     status: "trialing",
@@ -100,6 +103,16 @@ export async function ensureExplorationTrial(orgId: string): Promise<void> {
     cancel_at_period_end: false,
     updated_at: new Date().toISOString(),
   };
+
+  // Only set a placeholder when DB still requires NOT NULL (pre-migration).
+  // After 0007 migration, stripe_customer_id stays null until checkout.
+  const keepCustomerId = existing?.stripe_customer_id as string | undefined;
+  if (keepCustomerId && !isRealStripeCustomerId(keepCustomerId)) {
+    row.stripe_customer_id = keepCustomerId;
+  } else if (!existing) {
+    // Legacy NOT NULL fallback — replaced with real cus_ at checkout
+    row.stripe_customer_id = `explore_${orgId}`;
+  }
 
   if (existing) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

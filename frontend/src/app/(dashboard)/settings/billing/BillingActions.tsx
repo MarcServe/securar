@@ -27,7 +27,10 @@ export function BillingActions({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to start checkout");
+        setError(
+          [data.error, data.detail].filter(Boolean).join(" — ") ||
+            "Failed to start checkout"
+        );
         return;
       }
       if (data.url) window.location.href = data.url;
