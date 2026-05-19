@@ -5,6 +5,7 @@ import { getOrgSubscription, isPro as checkIsPro, isExplorationTrial, hasStripeS
 import { getTrialDays } from "@/lib/trial-config";
 import { syncSubscriptionFromCheckoutSession, syncOrgSubscriptionFromStripe } from "@/lib/sync-stripe-subscription";
 import { BillingActions } from "./BillingActions";
+import { BillingSync } from "./BillingSync";
 import { CheckCircle2, AlertTriangle, Crown } from "lucide-react";
 
 interface PageProps {
@@ -45,7 +46,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
 
   if (orgId) {
     try {
-      await syncOrgSubscriptionFromStripe(orgId);
+      await syncOrgSubscriptionFromStripe(orgId, user.email ?? undefined);
     } catch (e) {
       console.error("[billing] stripe sync failed", e);
     }
@@ -67,22 +68,31 @@ export default async function BillingPage({ searchParams }: PageProps) {
     : null;
 
   const justSubscribed = searchParams.subscribed === "true";
+  const needsStripeSync = justSubscribed && explorationTrial;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-8">
+      <BillingSync needsSync={needsStripeSync} />
+
       {justSubscribed && (
         <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-5 py-4">
           <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
           <div>
             <p className="font-semibold text-emerald-400">
-              {subscribed ? "You're subscribed to Pro!" : "Your Pro trial is active!"}
+              {needsStripeSync
+                ? "Payment received — activating Pro…"
+                : subscribed
+                  ? "You're subscribed to Pro!"
+                  : "Your Pro trial is active!"}
             </p>
             <p className="text-sm text-muted-foreground">
-              {subscribed
-                ? stripeTrialing
-                  ? "Your payment method is on file. You won't be charged until your trial ends."
-                  : "Your subscription is active. All Pro features are unlocked."
-                : "All Pro features are unlocked during your trial. Subscribe before it ends to keep access."}
+              {needsStripeSync
+                ? "We're linking your Stripe subscription. This usually takes a few seconds."
+                : subscribed
+                  ? stripeTrialing
+                    ? "Your payment method is on file. Billing starts after your trial period."
+                    : "Your subscription is active. All Pro features are unlocked."
+                  : "All Pro features are unlocked during your trial. Subscribe before it ends to keep access."}
             </p>
           </div>
         </div>
@@ -96,6 +106,19 @@ export default async function BillingPage({ searchParams }: PageProps) {
             <span className="text-foreground font-medium">{orgName}</span>
           </p>
         </div>
+
+        {subscribed && stripeTrialing && !justSubscribed && (
+          <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-5 py-4">
+            <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+            <div>
+              <p className="font-semibold text-emerald-400">Pro subscription active</p>
+              <p className="text-sm text-muted-foreground">
+                Your card is on file. You won&apos;t be charged until{" "}
+                {periodEnd ?? "your trial ends"}.
+              </p>
+            </div>
+          </div>
+        )}
 
         {explorationTrial && !justSubscribed && (
           <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-xl px-5 py-4">

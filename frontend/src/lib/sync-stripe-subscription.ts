@@ -19,27 +19,82 @@ function subscriptionRowFromStripe(
   };
 }
 
+/** Update existing org row or insert — works without a unique index on org_id. */
+async function saveOrgSubscription(
+  orgId: string,
+  row: Record<string, unknown>
+): Promise<void> {
+  const admin = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (admin.from("subscriptions") as any)
+    .select("id")
+    .eq("org_id", orgId)
+    .maybeSingle();
+
+  if (existing?.id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (admin.from("subscriptions") as any)
+      .update(row)
+      .eq("org_id", orgId);
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (admin.from("subscriptions") as any).insert({
+    org_id: orgId,
+    ...row,
+  });
+  if (error) throw new Error(error.message);
+}
+
 /** Upsert org subscription from a Stripe subscription object. */
 export async function upsertOrgSubscriptionFromStripe(
   orgId: string,
   sub: Stripe.Subscription
 ): Promise<void> {
-  const admin = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (admin.from("subscriptions") as any).upsert(
-    subscriptionRowFromStripe(orgId, sub),
-    { onConflict: "org_id" }
-  );
-  if (error) {
-    throw new Error(error.message);
-  }
+  await saveOrgSubscription(orgId, subscriptionRowFromStripe(orgId, sub));
+}
+
+async function findStripeCustomerId(
+  stripe: Stripe,
+  orgId: string,
+  userEmail?: string
+): Promise<string | null> {
+  if (!userEmail) return null;
+
+  const { data: customers } = await stripe.customers.list({
+    email: userEmail,
+    limit: 10,
+  });
+
+  const byOrg = customers.find((c) => c.metadata?.org_id === orgId);
+  if (byOrg) return byOrg.id;
+
+  return customers[0]?.id ?? null;
+}
+
+async function findActiveStripeSubscription(
+  stripe: Stripe,
+  customerId: string
+): Promise<Stripe.Subscription | null> {
+  const { data: subs } = await stripe.subscriptions.list({
+    customer: customerId,
+    status: "all",
+    limit: 10,
+  });
+
+  return subs.find((s) => s.status === "active" || s.status === "trialing") ?? null;
 }
 
 /**
- * If the org has a Stripe customer but no subscription id in DB, pull the
- * latest subscription from Stripe (repairs missed webhooks).
+ * Pull subscription state from Stripe into the DB. Looks up by stored customer id
+ * or account email when checkout/webhook did not update the exploration-trial row.
  */
-export async function syncOrgSubscriptionFromStripe(orgId: string): Promise<boolean> {
+export async function syncOrgSubscriptionFromStripe(
+  orgId: string,
+  userEmail?: string
+): Promise<boolean> {
   const secret = process.env.STRIPE_SECRET_KEY;
   if (!secret) return false;
 
@@ -50,20 +105,22 @@ export async function syncOrgSubscriptionFromStripe(orgId: string): Promise<bool
     .eq("org_id", orgId)
     .maybeSingle();
 
-  if (!row?.stripe_customer_id?.startsWith("cus_")) return false;
-  if (row.stripe_subscription_id?.startsWith("sub_")) return false;
+  if (row?.stripe_subscription_id?.startsWith("sub_")) return false;
 
   const stripe = new Stripe(secret);
-  const { data: subs } = await stripe.subscriptions.list({
-    customer: row.stripe_customer_id,
-    limit: 1,
-    status: "all",
-  });
+  let customerId = row?.stripe_customer_id?.startsWith("cus_")
+    ? (row.stripe_customer_id as string)
+    : null;
 
-  const sub = subs.find((s) => s.status === "active" || s.status === "trialing");
+  if (!customerId) {
+    customerId = await findStripeCustomerId(stripe, orgId, userEmail);
+  }
+  if (!customerId) return false;
+
+  const sub = await findActiveStripeSubscription(stripe, customerId);
   if (!sub) return false;
 
-  await upsertOrgSubscriptionFromStripe(orgId, sub);
+  await saveOrgSubscription(orgId, subscriptionRowFromStripe(orgId, sub));
   return true;
 }
 
@@ -89,6 +146,6 @@ export async function syncSubscriptionFromCheckoutSession(
   if (!orgId || !subscriptionId) return false;
 
   const sub = await stripe.subscriptions.retrieve(subscriptionId);
-  await upsertOrgSubscriptionFromStripe(orgId, sub);
+  await saveOrgSubscription(orgId, subscriptionRowFromStripe(orgId, sub));
   return true;
 }

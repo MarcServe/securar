@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { User } from "@supabase/supabase-js";
 import { getTrialDays } from "@/lib/trial-config";
 import { isRealStripeCustomerId } from "@/lib/stripe-customer";
+import { syncOrgSubscriptionFromStripe } from "@/lib/sync-stripe-subscription";
 
 export function defaultOrgName(user: User): string {
   const fromMeta = user.user_metadata?.org_name as string | undefined;
@@ -123,10 +124,17 @@ export async function ensureExplorationTrial(orgId: string): Promise<void> {
   }
 }
 
-/** Provision org + start exploration trial for a signed-in user. */
+/** Provision org + sync Stripe + start exploration trial for a signed-in user. */
 export async function ensureUserReady(user: User): Promise<string | null> {
   const orgId = await ensureUserHasOrgForUser(user);
   if (!orgId) return null;
+
+  try {
+    await syncOrgSubscriptionFromStripe(orgId, user.email ?? undefined);
+  } catch (e) {
+    console.error("[ensureUserReady] stripe sync failed", e);
+  }
+
   await ensureExplorationTrial(orgId);
   return orgId;
 }

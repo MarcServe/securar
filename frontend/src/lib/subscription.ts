@@ -22,6 +22,8 @@ export async function getOrgSubscription(
   const { data } = await (supabase.from("subscriptions") as any)
     .select("*")
     .eq("org_id", orgId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   return data ?? null;
 }
