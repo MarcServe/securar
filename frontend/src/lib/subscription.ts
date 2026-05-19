@@ -144,21 +144,11 @@ export function getPlanDisplay(subscription: Subscription | null): PlanDisplay {
   };
 }
 
-/** Full report access via Pro subscription or a one-time report purchase. */
+/** Full report access — open for all org members (paywall removed). */
 export async function hasFullReportAccess(
-  supabase: SupabaseClient,
-  orgId: string,
-  assessmentId: string
+  _supabase: SupabaseClient,
+  _orgId: string,
+  _assessmentId: string
 ): Promise<boolean> {
-  const subscription = await getOrgSubscription(supabase, orgId);
-  if (isPro(subscription)) return true;
-
-  const { data: purchase } = await supabase
-    .from("report_purchases")
-    .select("id")
-    .eq("assessment_id", assessmentId)
-    .limit(1)
-    .maybeSingle();
-
-  return !!purchase;
+  return true;
 }
