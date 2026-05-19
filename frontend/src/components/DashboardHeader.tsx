@@ -53,6 +53,12 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             >
               Reports
             </Link>
+            <Link
+              href="/settings/billing"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Billing
+            </Link>
           </nav>
 
           {/* User Menu */}
@@ -108,6 +114,13 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
                 onClick={() => setMenuOpen(false)}
               >
                 Reports
+              </Link>
+              <Link
+                href="/settings/billing"
+                className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors"
+                onClick={() => setMenuOpen(false)}
+              >
+                Billing
               </Link>
               <div className="border-t border-border/40 my-2" />
               <div className="px-4 py-2 text-sm text-muted-foreground flex items-center gap-2">

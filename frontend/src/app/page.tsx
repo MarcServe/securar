@@ -13,6 +13,12 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-4">
             <Link
+              href="/pricing"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Pricing
+            </Link>
+            <Link
               href="/login"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >

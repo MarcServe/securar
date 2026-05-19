@@ -30,36 +30,110 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const assessmentId =
-      (session.metadata?.assessment_id as string) ||
-      (session.client_reference_id as string);
-    const userId = session.metadata?.user_id as string | undefined;
+  const supabase = createAdminClient();
 
-    if (!assessmentId) {
-      console.error("[Stripe webhook] No assessment_id in session", session.id);
-      return NextResponse.json({ received: true });
-    }
+  switch (event.type) {
+    case "checkout.session.completed": {
+      const session = event.data.object as Stripe.Checkout.Session;
 
-    const supabase = createAdminClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from("report_purchases") as any).insert({
-      assessment_id: assessmentId,
-      user_id: userId ?? null,
-      stripe_session_id: session.id,
-    });
+      // Only handle one-time payment sessions (report unlocks)
+      if (session.mode !== "payment") break;
 
-    if (error) {
-      if (error.code === "23505") {
-        return NextResponse.json({ received: true });
+      const assessmentId =
+        (session.metadata?.assessment_id as string) ||
+        (session.client_reference_id as string);
+      const userId = session.metadata?.user_id as string | undefined;
+
+      if (!assessmentId) {
+        console.error("[Stripe webhook] No assessment_id in session", session.id);
+        break;
       }
-      console.error("[Stripe webhook] Insert report_purchases failed", error);
-      return NextResponse.json(
-        { error: "Failed to record purchase" },
-        { status: 500 }
-      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("report_purchases") as any).insert({
+        assessment_id: assessmentId,
+        user_id: userId ?? null,
+        stripe_session_id: session.id,
+      });
+
+      if (error) {
+        if (error.code === "23505") break; // duplicate — already recorded
+        console.error("[Stripe webhook] Insert report_purchases failed", error);
+        return NextResponse.json(
+          { error: "Failed to record purchase" },
+          { status: 500 }
+        );
+      }
+      break;
     }
+
+    case "customer.subscription.created":
+    case "customer.subscription.updated": {
+      const sub = event.data.object as Stripe.Subscription;
+      const orgId = sub.metadata?.org_id as string | undefined;
+
+      if (!orgId) {
+        console.error("[Stripe webhook] No org_id in subscription metadata", sub.id);
+        break;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("subscriptions") as any).upsert(
+        {
+          org_id: orgId,
+          stripe_customer_id: sub.customer as string,
+          stripe_subscription_id: sub.id,
+          plan: "pro",
+          status: sub.status,
+          current_period_end: new Date(
+            (sub as unknown as { current_period_end: number }).current_period_end * 1000
+          ).toISOString(),
+          cancel_at_period_end: sub.cancel_at_period_end,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "stripe_subscription_id" }
+      );
+
+      if (error) {
+        console.error("[Stripe webhook] Upsert subscription failed", error);
+        return NextResponse.json(
+          { error: "Failed to record subscription" },
+          { status: 500 }
+        );
+      }
+      break;
+    }
+
+    case "customer.subscription.deleted": {
+      const sub = event.data.object as Stripe.Subscription;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("subscriptions") as any)
+        .update({ status: "canceled", updated_at: new Date().toISOString() })
+        .eq("stripe_subscription_id", sub.id);
+
+      if (error) {
+        console.error("[Stripe webhook] Cancel subscription failed", error);
+      }
+      break;
+    }
+
+    case "invoice.payment_failed": {
+      const invoice = event.data.object as Stripe.Invoice;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("subscriptions") as any)
+        .update({ status: "past_due", updated_at: new Date().toISOString() })
+        .eq("stripe_customer_id", invoice.customer as string);
+
+      if (error) {
+        console.error("[Stripe webhook] past_due update failed", error);
+      }
+      break;
+    }
+
+    default:
+      break;
   }
 
   return NextResponse.json({ received: true });
