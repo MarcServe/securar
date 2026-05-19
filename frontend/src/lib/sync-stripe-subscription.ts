@@ -144,7 +144,59 @@ async function findActiveStripeSubscription(
     limit: 20,
   });
 
-  return subs.find(isLiveSubscription) ?? null;
+  return (
+    subs.find(isLiveSubscription) ??
+    subs.find((s) => s.status === "past_due") ??
+    null
+  );
+}
+
+async function findSubscriptionViaCheckoutSessions(
+  stripe: Stripe,
+  orgId: string,
+  userEmail?: string
+): Promise<Stripe.Subscription | null> {
+  if (!userEmail) return null;
+
+  const email = userEmail.toLowerCase();
+  let startingAfter: string | undefined;
+
+  for (let page = 0; page < 5; page++) {
+    const sessions = await stripe.checkout.sessions.list({
+      limit: 100,
+      starting_after: startingAfter,
+      status: "complete",
+    });
+
+    for (const session of sessions.data) {
+      if (session.mode !== "subscription") continue;
+
+      const sessionEmail = (
+        session.customer_email ||
+        session.customer_details?.email ||
+        ""
+      ).toLowerCase();
+
+      const sessionOrgId = session.metadata?.org_id as string | undefined;
+      const emailMatch = sessionEmail === email;
+      const orgMatch = sessionOrgId === orgId;
+
+      if (!emailMatch && !orgMatch) continue;
+
+      const subscriptionId = session.subscription;
+      if (!subscriptionId || typeof subscriptionId !== "string") continue;
+
+      const sub = await stripe.subscriptions.retrieve(subscriptionId);
+      if (isLiveSubscription(sub) || sub.status === "past_due") {
+        return sub;
+      }
+    }
+
+    if (!sessions.has_more || sessions.data.length === 0) break;
+    startingAfter = sessions.data[sessions.data.length - 1]?.id;
+  }
+
+  return null;
 }
 
 async function findSubscriptionForOrg(
@@ -165,9 +217,13 @@ async function findSubscriptionForOrg(
 
   // 3) Find customer by org metadata or email, then list subscriptions
   const customerId = await findStripeCustomerId(stripe, orgId, userEmail);
-  if (!customerId) return null;
+  if (customerId) {
+    const sub = await findActiveStripeSubscription(stripe, customerId);
+    if (sub) return sub;
+  }
 
-  return findActiveStripeSubscription(stripe, customerId);
+  // 4) Scan recent completed checkout sessions (handles missing metadata / wrong customer row)
+  return findSubscriptionViaCheckoutSessions(stripe, orgId, userEmail);
 }
 
 export type SyncResult = {
@@ -221,7 +277,11 @@ export async function syncOrgSubscriptionFromStripe(
   );
 
   if (!sub) {
-    return { synced: false, reason: "no active Stripe subscription found for org" };
+    const mode = secret.startsWith("sk_live") ? "live" : "test";
+    return {
+      synced: false,
+      reason: `no subscription found in Stripe ${mode} mode for ${userEmail ?? orgId}`,
+    };
   }
 
   await saveOrgSubscription(orgId, subscriptionRowFromStripe(orgId, sub));
