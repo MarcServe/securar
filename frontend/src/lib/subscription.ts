@@ -42,6 +42,18 @@ export function isTrialing(subscription: Subscription | null): boolean {
   return subscription?.status === "trialing";
 }
 
+/** No-card in-app trial — not yet linked to a Stripe subscription. */
+export function isExplorationTrial(subscription: Subscription | null): boolean {
+  if (!subscription || subscription.status !== "trialing") return false;
+  const subId = subscription.stripe_subscription_id ?? "";
+  return !subId.startsWith("sub_");
+}
+
+/** Checkout completed — Stripe subscription exists (may still be in trial period). */
+export function hasStripeSubscription(subscription: Subscription | null): boolean {
+  return !!subscription?.stripe_subscription_id?.startsWith("sub_");
+}
+
 /** Full report access via Pro subscription or a one-time report purchase. */
 export async function hasFullReportAccess(
   supabase: SupabaseClient,

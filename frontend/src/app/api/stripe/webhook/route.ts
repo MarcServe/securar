@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { upsertOrgSubscriptionFromStripe } from "@/lib/sync-stripe-subscription";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 if (!webhookSecret) {
@@ -48,24 +49,10 @@ export async function POST(req: NextRequest) {
 
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        const periodEnd = (sub as unknown as { current_period_end: number }).current_period_end;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase.from("subscriptions") as any).upsert(
-          {
-            org_id: orgId,
-            stripe_customer_id: customerId,
-            stripe_subscription_id: sub.id,
-            plan: "pro",
-            status: sub.status,
-            current_period_end: new Date(periodEnd * 1000).toISOString(),
-            cancel_at_period_end: sub.cancel_at_period_end,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "stripe_subscription_id" }
-        );
-
-        if (error) {
+        try {
+          await upsertOrgSubscriptionFromStripe(orgId, sub);
+        } catch (error) {
           console.error("[Stripe webhook] Subscription checkout upsert failed", error);
         }
         break;
@@ -112,24 +99,9 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("subscriptions") as any).upsert(
-        {
-          org_id: orgId,
-          stripe_customer_id: sub.customer as string,
-          stripe_subscription_id: sub.id,
-          plan: "pro",
-          status: sub.status,
-          current_period_end: new Date(
-            (sub as unknown as { current_period_end: number }).current_period_end * 1000
-          ).toISOString(),
-          cancel_at_period_end: sub.cancel_at_period_end,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "stripe_subscription_id" }
-      );
-
-      if (error) {
+      try {
+        await upsertOrgSubscriptionFromStripe(orgId, sub);
+      } catch (error) {
         console.error("[Stripe webhook] Upsert subscription failed", error);
         return NextResponse.json(
           { error: "Failed to record subscription" },

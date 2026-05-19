@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getOrgSubscription, isPro as checkIsPro, isTrialing } from "@/lib/subscription";
+import { getOrgSubscription, isPro as checkIsPro, isExplorationTrial, hasStripeSubscription } from "@/lib/subscription";
 import { getTrialDays } from "@/lib/trial-config";
+import { syncSubscriptionFromCheckoutSession, syncOrgSubscriptionFromStripe } from "@/lib/sync-stripe-subscription";
 import { BillingActions } from "./BillingActions";
 import { CheckCircle2, AlertTriangle, Crown } from "lucide-react";
 
 interface PageProps {
-  searchParams: { subscribed?: string; trial?: string };
+  searchParams: { subscribed?: string; session_id?: string };
 }
 
 export default async function BillingPage({ searchParams }: PageProps) {
@@ -17,6 +18,14 @@ export default async function BillingPage({ searchParams }: PageProps) {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  if (searchParams.session_id) {
+    try {
+      await syncSubscriptionFromCheckoutSession(searchParams.session_id);
+    } catch (e) {
+      console.error("[billing] checkout sync failed", e);
+    }
+  }
 
   const { data: membershipData } = await supabase
     .from("memberships")
@@ -34,10 +43,20 @@ export default async function BillingPage({ searchParams }: PageProps) {
   const orgId = membership?.org_id;
   const orgName = membership?.organisations?.name ?? "Your Organisation";
 
+  if (orgId) {
+    try {
+      await syncOrgSubscriptionFromStripe(orgId);
+    } catch (e) {
+      console.error("[billing] stripe sync failed", e);
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subscription = orgId ? await getOrgSubscription(supabase as any, orgId) : null;
   const pro = checkIsPro(subscription);
-  const trialing = isTrialing(subscription);
+  const explorationTrial = isExplorationTrial(subscription);
+  const subscribed = hasStripeSubscription(subscription);
+  const stripeTrialing = subscribed && subscription?.status === "trialing";
 
   const periodEnd = subscription?.current_period_end
     ? new Date(subscription.current_period_end).toLocaleDateString("en-GB", {
@@ -48,7 +67,6 @@ export default async function BillingPage({ searchParams }: PageProps) {
     : null;
 
   const justSubscribed = searchParams.subscribed === "true";
-  const startedTrial = searchParams.trial === "true";
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-8">
@@ -57,12 +75,14 @@ export default async function BillingPage({ searchParams }: PageProps) {
           <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
           <div>
             <p className="font-semibold text-emerald-400">
-              {startedTrial || trialing ? "Your Pro trial is active!" : "Welcome to Pro!"}
+              {subscribed ? "You're subscribed to Pro!" : "Your Pro trial is active!"}
             </p>
             <p className="text-sm text-muted-foreground">
-              {startedTrial || trialing
-                ? "All Pro features are unlocked during your trial. You won't be charged until it ends."
-                : "Your subscription is now active. All Pro features are unlocked."}
+              {subscribed
+                ? stripeTrialing
+                  ? "Your payment method is on file. You won't be charged until your trial ends."
+                  : "Your subscription is active. All Pro features are unlocked."
+                : "All Pro features are unlocked during your trial. Subscribe before it ends to keep access."}
             </p>
           </div>
         </div>
@@ -77,7 +97,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        {trialing && !justSubscribed && (
+        {explorationTrial && !justSubscribed && (
           <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-xl px-5 py-4">
             <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
             <div>
@@ -97,7 +117,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
               <Crown className="h-5 w-5 text-primary" />
               <span className="text-lg font-semibold">Pro Plan</span>
               <span className="bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded-full">
-                {trialing ? "Trial" : "Active"}
+                {explorationTrial ? "Trial" : stripeTrialing ? "Subscribed" : "Active"}
               </span>
             </>
           ) : (
@@ -112,7 +132,12 @@ export default async function BillingPage({ searchParams }: PageProps) {
 
         {pro && periodEnd && (
           <p className="text-sm text-muted-foreground">
-            {trialing ? "Trial ends" : "Next billing date"}:{" "}
+            {explorationTrial
+              ? "Trial ends"
+              : stripeTrialing
+                ? "First charge on"
+                : "Next billing date"}
+            :{" "}
             <span className="text-foreground font-medium">{periodEnd}</span>
           </p>
         )}
@@ -136,7 +161,11 @@ export default async function BillingPage({ searchParams }: PageProps) {
           </div>
         )}
 
-        <BillingActions isPro={pro} trialing={trialing} trialDays={getTrialDays()} />
+        <BillingActions
+          isPro={pro}
+          explorationTrial={explorationTrial}
+          trialDays={getTrialDays()}
+        />
 
         {!pro && (
           <Link

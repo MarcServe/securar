@@ -6,13 +6,13 @@ import { DEFAULT_TRIAL_DAYS } from "@/lib/trial-config";
 
 interface BillingActionsProps {
   isPro: boolean;
-  trialing?: boolean;
+  explorationTrial?: boolean;
   trialDays?: number;
 }
 
 export function BillingActions({
   isPro,
-  trialing = false,
+  explorationTrial = false,
   trialDays = DEFAULT_TRIAL_DAYS,
 }: BillingActionsProps) {
   const [loading, setLoading] = useState<"upgrade" | "portal" | null>(null);
@@ -61,8 +61,7 @@ export function BillingActions({
     }
   };
 
-  // Exploration trial — no Stripe customer yet; offer subscribe to keep Pro
-  if (trialing) {
+  if (explorationTrial) {
     return (
       <div className="space-y-3">
         <button

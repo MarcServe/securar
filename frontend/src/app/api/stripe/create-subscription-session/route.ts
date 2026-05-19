@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
       metadata: { org_id: orgId },
       subscription_data: subscriptionData,
       allow_promotion_codes: true,
-      success_url: `${origin}/settings/billing?subscribed=true${onExplorationTrial || subscriptionData.trial_end || subscriptionData.trial_period_days ? "&trial=true" : ""}`,
+      success_url: `${origin}/settings/billing?subscribed=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: fromChoosePlan ? `${origin}/choose-plan` : `${origin}/settings/billing`,
     });
 
