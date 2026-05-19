@@ -70,6 +70,80 @@ export function hasStripeSubscription(subscription: Subscription | null): boolea
   return !!subscription?.stripe_subscription_id?.startsWith("sub_");
 }
 
+export type PlanDisplay = {
+  name: string;
+  badge: string;
+  description: string;
+  showUpgrade: boolean;
+  upgradeHref: string;
+  upgradeLabel: string;
+  periodEnd: string | null;
+};
+
+/** User-facing plan label for nav and profile. */
+export function getPlanDisplay(subscription: Subscription | null): PlanDisplay {
+  const exploration = isExplorationTrial(subscription);
+  const subscribed = hasStripeSubscription(subscription);
+  const pro = isPro(subscription);
+
+  const periodEnd = subscription?.current_period_end
+    ? new Date(subscription.current_period_end).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+
+  if (subscribed) {
+    const trialing = subscription?.status === "trialing";
+    return {
+      name: "Pro",
+      badge: trialing ? "Subscribed" : "Active",
+      description: trialing
+        ? "Your card is on file. Billing starts after your trial."
+        : "Full Pro access — reports, AI analysis, and PDF export.",
+      showUpgrade: false,
+      upgradeHref: "/settings/billing",
+      upgradeLabel: "Billing",
+      periodEnd,
+    };
+  }
+
+  if (exploration) {
+    return {
+      name: "Pro Trial",
+      badge: "Exploration",
+      description: "All Pro features unlocked during your free trial.",
+      showUpgrade: true,
+      upgradeHref: "/settings/billing",
+      upgradeLabel: "Subscribe",
+      periodEnd,
+    };
+  }
+
+  if (pro) {
+    return {
+      name: "Pro",
+      badge: "Active",
+      description: "Full Pro access enabled.",
+      showUpgrade: false,
+      upgradeHref: "/settings/billing",
+      upgradeLabel: "Billing",
+      periodEnd,
+    };
+  }
+
+  return {
+    name: "Free",
+    badge: "Current",
+    description: "Upgrade for full reports, AI analysis, and PDF export.",
+    showUpgrade: true,
+    upgradeHref: "/choose-plan",
+    upgradeLabel: "Upgrade",
+    periodEnd: null,
+  };
+}
+
 /** Full report access via Pro subscription or a one-time report purchase. */
 export async function hasFullReportAccess(
   supabase: SupabaseClient,

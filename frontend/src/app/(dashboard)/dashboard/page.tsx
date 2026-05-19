@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getOrgSubscriptionAdmin, getPlanDisplay } from "@/lib/subscription";
+import { UserProfileCard } from "@/components/UserProfileCard";
 import {
   Building2,
   Plus,
@@ -52,6 +54,12 @@ export default async function DashboardPage() {
 
   const org = membership?.organisations;
 
+  const subscription = membership?.org_id
+    ? await getOrgSubscriptionAdmin(membership.org_id)
+    : null;
+  const plan = getPlanDisplay(subscription);
+  const displayName = (user.user_metadata?.full_name as string | undefined) ?? null;
+
   // Calculate stats
   const completedCount = assessments?.filter(a => a.status === "completed").length || 0;
   const latestScore = assessments?.find(a => a.status === "completed")?.readiness_score;
@@ -59,6 +67,14 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="max-w-7xl mx-auto px-6 py-8">
+        <UserProfileCard
+          email={user.email ?? ""}
+          displayName={displayName}
+          orgName={org?.name || "Your Organisation"}
+          role={membership?.role ?? "member"}
+          plan={plan}
+        />
+
         {/* Company Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
