@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/choose-plan";
+  const next = searchParams.get("next") || "/dashboard";
   const [step, setStep] = useState<"signup" | "verify">("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +35,7 @@ function SignupForm() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/dashboard")}`,
         data: {
           org_name: orgName,
         },

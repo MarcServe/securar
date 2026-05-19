@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Shield, CheckCircle2, ArrowRight, Zap, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { DEFAULT_TRIAL_DAYS } from "@/lib/trial-config";
 
 function UpgradeButton() {
   const [authState, setAuthState] = useState<"loading" | "guest" | "user">("loading");
@@ -52,7 +53,7 @@ function UpgradeButton() {
       href="/choose-plan"
       className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-semibold hover:bg-primary/90 transition-all hover:scale-105"
     >
-      Start 14-day free trial
+      Start {DEFAULT_TRIAL_DAYS}-day free trial
       <ArrowRight className="h-4 w-4" />
     </Link>
   );

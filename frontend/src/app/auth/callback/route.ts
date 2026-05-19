@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { ensureUserHasOrgForUser } from "@/lib/provision-org";
+import { ensureUserReady } from "@/lib/provision-org";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       } = await supabase.auth.getUser();
 
       if (user) {
-        await ensureUserHasOrgForUser(user);
+        await ensureUserReady(user);
       }
 
       return NextResponse.redirect(`${origin}${next}`);

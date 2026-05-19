@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { ArrowRight, ExternalLink } from "lucide-react";
+import { DEFAULT_TRIAL_DAYS } from "@/lib/trial-config";
 
 interface BillingActionsProps {
   isPro: boolean;
+  trialing?: boolean;
+  trialDays?: number;
 }
 
-export function BillingActions({ isPro }: BillingActionsProps) {
+export function BillingActions({
+  isPro,
+  trialing = false,
+  trialDays = DEFAULT_TRIAL_DAYS,
+}: BillingActionsProps) {
   const [loading, setLoading] = useState<"upgrade" | "portal" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +58,27 @@ export function BillingActions({ isPro }: BillingActionsProps) {
     }
   };
 
+  // Exploration trial — no Stripe customer yet; offer subscribe to keep Pro
+  if (trialing) {
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={handleUpgrade}
+          disabled={loading !== null}
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-60"
+        >
+          {loading === "upgrade" ? (
+            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <ArrowRight className="h-4 w-4" />
+          )}
+          {loading === "upgrade" ? "Redirecting…" : "Subscribe to keep Pro after trial"}
+        </button>
+        {error && <p className="text-sm text-rose-400">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {isPro ? (
@@ -77,7 +105,7 @@ export function BillingActions({ isPro }: BillingActionsProps) {
           ) : (
             <ArrowRight className="h-4 w-4" />
           )}
-          {loading === "upgrade" ? "Redirecting…" : "Start 14-day free trial"}
+          {loading === "upgrade" ? "Redirecting…" : `Upgrade to Pro — £49/mo`}
         </button>
       )}
       {error && <p className="text-sm text-rose-400">{error}</p>}

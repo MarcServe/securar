@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { User } from "@supabase/supabase-js";
+import { getTrialDays } from "@/lib/trial-config";
 
 export function defaultOrgName(user: User): string {
   const fromMeta = user.user_metadata?.org_name as string | undefined;
@@ -50,6 +51,71 @@ export async function ensureUserHasOrgForUser(user: User): Promise<string | null
   }
 
   return org.id as string;
+}
+
+/**
+ * Starts a no-card exploration trial for new orgs (full Pro access).
+ * Skips if the org already has or had a paid Stripe subscription.
+ */
+export async function ensureExplorationTrial(orgId: string): Promise<void> {
+  const admin = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (admin.from("subscriptions") as any)
+    .select("*")
+    .eq("org_id", orgId)
+    .maybeSingle();
+
+  // Paid Stripe subscription — do not overwrite
+  if (existing?.stripe_subscription_id?.startsWith("sub_")) return;
+
+  // Active exploration or Stripe trial still in progress
+  if (existing?.status === "trialing" && existing.current_period_end) {
+    if (new Date(existing.current_period_end) > new Date()) return;
+  }
+
+  // Active paid Pro
+  if (existing?.status === "active" && existing.plan === "pro") return;
+
+  // Trial already used (expired or canceled) — one exploration trial per org
+  if (existing?.status === "canceled" || existing?.status === "past_due") return;
+  if (
+    existing?.status === "trialing" &&
+    existing.current_period_end &&
+    new Date(existing.current_period_end) <= new Date()
+  ) {
+    return;
+  }
+
+  const trialEnd = new Date();
+  trialEnd.setDate(trialEnd.getDate() + getTrialDays());
+
+  const row = {
+    org_id: orgId,
+    stripe_customer_id: existing?.stripe_customer_id ?? `explore_${orgId}`,
+    stripe_subscription_id: existing?.stripe_subscription_id ?? null,
+    plan: "pro",
+    status: "trialing",
+    current_period_end: trialEnd.toISOString(),
+    cancel_at_period_end: false,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin.from("subscriptions") as any).update(row).eq("org_id", orgId);
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin.from("subscriptions") as any).insert(row);
+  }
+}
+
+/** Provision org + start exploration trial for a signed-in user. */
+export async function ensureUserReady(user: User): Promise<string | null> {
+  const orgId = await ensureUserHasOrgForUser(user);
+  if (!orgId) return null;
+  await ensureExplorationTrial(orgId);
+  return orgId;
 }
 
 /** Load org_id + name for billing; provisions org if missing. */

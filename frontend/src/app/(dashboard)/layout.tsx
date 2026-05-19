@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ensureUserHasOrgForUser } from "@/lib/provision-org";
+import { ensureUserReady } from "@/lib/provision-org";
 import { DashboardHeader } from "@/components/DashboardHeader";
 
 export default async function DashboardLayout({
@@ -18,7 +18,7 @@ export default async function DashboardLayout({
   }
 
   // Auto-provision org for accounts that signed in without completing signup org setup
-  await ensureUserHasOrgForUser(user);
+  await ensureUserReady(user);
 
   return (
     <div className="min-h-screen bg-background">

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgSubscription, isPro as checkIsPro, isTrialing } from "@/lib/subscription";
+import { getTrialDays } from "@/lib/trial-config";
 import { BillingActions } from "./BillingActions";
 import { CheckCircle2, AlertTriangle, Crown } from "lucide-react";
 
@@ -70,8 +71,25 @@ export default async function BillingPage({ searchParams }: PageProps) {
       <div className="glass border border-border/50 rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Billing</h1>
-          <span className="text-sm text-muted-foreground">{orgName}</span>
+          <p className="text-sm text-muted-foreground">
+            Organisation:{" "}
+            <span className="text-foreground font-medium">{orgName}</span>
+          </p>
         </div>
+
+        {trialing && !justSubscribed && (
+          <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-xl px-5 py-4">
+            <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
+            <div>
+              <p className="font-semibold text-primary">Exploration trial active</p>
+              <p className="text-sm text-muted-foreground">
+                All Pro features are unlocked until{" "}
+                {periodEnd ?? `your ${getTrialDays()}-day trial ends`}. Subscribe before then to
+                keep access.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           {pro ? (
@@ -118,14 +136,14 @@ export default async function BillingPage({ searchParams }: PageProps) {
           </div>
         )}
 
-        <BillingActions isPro={pro} />
+        <BillingActions isPro={pro} trialing={trialing} trialDays={getTrialDays()} />
 
         {!pro && (
           <Link
             href="/choose-plan"
             className="inline-block text-sm text-primary hover:underline"
           >
-            Compare plans and start a free trial →
+            Compare plans →
           </Link>
         )}
       </div>

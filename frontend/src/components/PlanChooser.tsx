@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ArrowRight, Zap, Shield } from "lucide-react";
+import { DEFAULT_TRIAL_DAYS } from "@/lib/trial-config";
 
 const FREE_FEATURES = [
   "Unlimited assessments",
@@ -25,13 +26,11 @@ interface PlanChooserProps {
   trialDays?: number;
   /** Where to send the user after choosing free */
   freeRedirect?: string;
-  showTestHint?: boolean;
 }
 
 export function PlanChooser({
-  trialDays = 14,
+  trialDays = DEFAULT_TRIAL_DAYS,
   freeRedirect = "/dashboard",
-  showTestHint = true,
 }: PlanChooserProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<"trial" | "free" | null>(null);
@@ -182,17 +181,6 @@ export function PlanChooser({
         <p className="text-sm text-rose-400 text-center" role="alert">
           {error}
         </p>
-      )}
-
-      {showTestHint && (
-        <div className="max-w-2xl mx-auto glass border border-border/50 rounded-xl px-5 py-4 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground mb-1">Testing subscriptions</p>
-          <p>
-            Use Stripe test card{" "}
-            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">4242 4242 4242 4242</code>{" "}
-            with any future expiry and CVC. Your Pro trial activates immediately after checkout.
-          </p>
-        </div>
       )}
     </div>
   );

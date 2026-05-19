@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { hasFullReportAccess } from "@/lib/subscription";
 import {
   FileText,
   Download,
@@ -47,6 +48,22 @@ export default async function ReportsPage() {
 
   const org = membership?.organisations;
 
+  const reportsWithAccess = await Promise.all(
+    (reports || []).map(async (report) => {
+      const assessment = report.assessments as {
+        id: string;
+        target_frameworks: string[] | null;
+        readiness_score: number | null;
+        status: string;
+      } | null;
+      const unlocked =
+        orgId && assessment?.id
+          ? await hasFullReportAccess(supabase as never, orgId, assessment.id)
+          : false;
+      return { report, assessment, unlocked };
+    })
+  );
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -78,15 +95,9 @@ export default async function ReportsPage() {
             </p>
           </div>
 
-          {reports && reports.length > 0 ? (
+          {reportsWithAccess.length > 0 ? (
             <div className="divide-y divide-border">
-              {reports.map((report) => {
-                const assessment = report.assessments as {
-                  id: string;
-                  target_frameworks: string[];
-                  readiness_score: number | null;
-                  status: string;
-                } | null;
+              {reportsWithAccess.map(({ report, assessment, unlocked }) => {
                 const summary = report.summary as {
                   scores?: { overall?: number };
                   organisation?: { name?: string };
@@ -139,15 +150,17 @@ export default async function ReportsPage() {
                         View
                         <ArrowRight className="h-4 w-4" />
                       </Link>
-                      <a
-                        href={`/api/assessments/${assessment?.id}/report/html`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                      >
-                        <Download className="h-4 w-4" />
-                        PDF
-                      </a>
+                      {unlocked && (
+                        <a
+                          href={`/api/assessments/${assessment?.id}/report/html`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                        >
+                          <Download className="h-4 w-4" />
+                          PDF
+                        </a>
+                      )}
                     </div>
                   </div>
                 );

@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrProvisionMembership } from "@/lib/provision-org";
+import { getTrialDays } from "@/lib/trial-config";
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
     const origin = req.headers.get("origin") || req.nextUrl.origin;
     const body = await req.json().catch(() => ({}));
     const fromChoosePlan = body?.source === "choose-plan";
-    const trialDays = parseInt(process.env.STRIPE_TRIAL_DAYS || "14", 10);
+    const trialDays = getTrialDays();
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",

@@ -29,10 +29,13 @@ export async function getOrgSubscription(
 /** Returns true if the subscription is an active/trialing Pro plan. */
 export function isPro(subscription: Subscription | null): boolean {
   if (!subscription) return false;
-  return (
-    subscription.plan === "pro" &&
-    (subscription.status === "active" || subscription.status === "trialing")
-  );
+  if (subscription.plan !== "pro") return false;
+  if (subscription.status === "active") return true;
+  if (subscription.status === "trialing") {
+    if (!subscription.current_period_end) return true;
+    return new Date(subscription.current_period_end) > new Date();
+  }
+  return false;
 }
 
 export function isTrialing(subscription: Subscription | null): boolean {
