@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getOrProvisionMembership } from "@/lib/provision-org";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,25 +19,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
     }
 
-    // Find the user's org
-    const { data: membershipData } = await supabase
-      .from("memberships")
-      .select("org_id")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
-
-    const membership = membershipData as { org_id: string } | null;
-
+    const membership = await getOrProvisionMembership(user);
     if (!membership) {
-      return NextResponse.json({ error: "No organisation found" }, { status: 404 });
+      return NextResponse.json({ error: "No active subscription found" }, { status: 404 });
     }
 
+    const orgId = membership.orgId;
+
     // Look up the Stripe customer ID for this org
+    const admin = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: sub } = await (supabase.from("subscriptions") as any)
+    const { data: sub } = await (admin.from("subscriptions") as any)
       .select("stripe_customer_id")
-      .eq("org_id", membership.org_id)
+      .eq("org_id", orgId)
       .maybeSingle();
 
     if (!sub?.stripe_customer_id) {

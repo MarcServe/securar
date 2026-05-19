@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getOrgSubscription, isPro as checkIsPro } from "@/lib/subscription";
+import { getOrgSubscription, isPro as checkIsPro, isTrialing } from "@/lib/subscription";
 import { BillingActions } from "./BillingActions";
 import { CheckCircle2, AlertTriangle, Crown } from "lucide-react";
 
 interface PageProps {
-  searchParams: { subscribed?: string };
+  searchParams: { subscribed?: string; trial?: string };
 }
 
 export default async function BillingPage({ searchParams }: PageProps) {
@@ -16,7 +17,6 @@ export default async function BillingPage({ searchParams }: PageProps) {
 
   if (!user) redirect("/login");
 
-  // Find the user's org
   const { data: membershipData } = await supabase
     .from("memberships")
     .select("org_id, role, organisations(name)")
@@ -36,6 +36,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subscription = orgId ? await getOrgSubscription(supabase as any, orgId) : null;
   const pro = checkIsPro(subscription);
+  const trialing = isTrialing(subscription);
 
   const periodEnd = subscription?.current_period_end
     ? new Date(subscription.current_period_end).toLocaleDateString("en-GB", {
@@ -46,23 +47,26 @@ export default async function BillingPage({ searchParams }: PageProps) {
     : null;
 
   const justSubscribed = searchParams.subscribed === "true";
+  const startedTrial = searchParams.trial === "true";
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-8">
-      {/* Success banner */}
       {justSubscribed && (
         <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-5 py-4">
           <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
           <div>
-            <p className="font-semibold text-emerald-400">Welcome to Pro!</p>
+            <p className="font-semibold text-emerald-400">
+              {startedTrial || trialing ? "Your Pro trial is active!" : "Welcome to Pro!"}
+            </p>
             <p className="text-sm text-muted-foreground">
-              Your subscription is now active. All Pro features are unlocked.
+              {startedTrial || trialing
+                ? "All Pro features are unlocked during your trial. You won't be charged until it ends."
+                : "Your subscription is now active. All Pro features are unlocked."}
             </p>
           </div>
         </div>
       )}
 
-      {/* Current plan card */}
       <div className="glass border border-border/50 rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Billing</h1>
@@ -75,7 +79,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
               <Crown className="h-5 w-5 text-primary" />
               <span className="text-lg font-semibold">Pro Plan</span>
               <span className="bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded-full">
-                Active
+                {trialing ? "Trial" : "Active"}
               </span>
             </>
           ) : (
@@ -90,7 +94,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
 
         {pro && periodEnd && (
           <p className="text-sm text-muted-foreground">
-            Next billing date:{" "}
+            {trialing ? "Trial ends" : "Next billing date"}:{" "}
             <span className="text-foreground font-medium">{periodEnd}</span>
           </p>
         )}
@@ -115,9 +119,17 @@ export default async function BillingPage({ searchParams }: PageProps) {
         )}
 
         <BillingActions isPro={pro} />
+
+        {!pro && (
+          <Link
+            href="/choose-plan"
+            className="inline-block text-sm text-primary hover:underline"
+          >
+            Compare plans and start a free trial →
+          </Link>
+        )}
       </div>
 
-      {/* Plan comparison — only show on Free */}
       {!pro && (
         <div className="glass border border-border/50 rounded-2xl p-6">
           <h2 className="text-lg font-semibold mb-5">What you get with Pro</h2>

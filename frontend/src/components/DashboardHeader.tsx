@@ -54,6 +54,12 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
               Reports
             </Link>
             <Link
+              href="/choose-plan"
+              className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              Upgrade
+            </Link>
+            <Link
               href="/settings/billing"
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -114,6 +120,13 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
                 onClick={() => setMenuOpen(false)}
               >
                 Reports
+              </Link>
+              <Link
+                href="/choose-plan"
+                className="px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                onClick={() => setMenuOpen(false)}
+              >
+                Upgrade
               </Link>
               <Link
                 href="/settings/billing"

@@ -1,64 +1,60 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Shield, CheckCircle2, ArrowRight, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Shield, CheckCircle2, ArrowRight, Zap, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 function UpgradeButton() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [authState, setAuthState] = useState<"loading" | "guest" | "user">("loading");
 
-  const handleUpgrade = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/stripe/create-subscription-session", {
-        method: "POST",
-      });
-      if (res.status === 401) {
-        router.push("/signup?next=/pricing");
-        return;
-      }
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Something went wrong");
-        return;
-      }
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch {
-      setError("Network error — please try again");
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setAuthState(user ? "user" : "guest");
+    });
+  }, []);
+
+  if (authState === "loading") {
+    return (
+      <button
+        disabled
+        className="w-full flex items-center justify-center gap-2 bg-primary/60 text-primary-foreground px-6 py-3 rounded-lg font-semibold"
+      >
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading…
+      </button>
+    );
+  }
+
+  if (authState === "guest") {
+    return (
+      <div className="space-y-2">
+        <Link
+          href="/signup?next=/choose-plan"
+          className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-semibold hover:bg-primary/90 transition-all hover:scale-105"
+        >
+          Create account to start trial
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+        <p className="text-xs text-muted-foreground text-center">
+          Already have an account?{" "}
+          <Link href="/login?next=/choose-plan" className="text-primary hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-2">
-      <button
-        onClick={handleUpgrade}
-        disabled={loading}
-        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-semibold hover:bg-primary/90 transition-all hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-      >
-        {loading ? (
-          <>
-            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            Redirecting…
-          </>
-        ) : (
-          <>
-            Upgrade to Pro
-            <ArrowRight className="h-4 w-4" />
-          </>
-        )}
-      </button>
-      {error && (
-        <p className="text-sm text-rose-400 text-center">{error}</p>
-      )}
-    </div>
+    <Link
+      href="/choose-plan"
+      className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-semibold hover:bg-primary/90 transition-all hover:scale-105"
+    >
+      Start 14-day free trial
+      <ArrowRight className="h-4 w-4" />
+    </Link>
   );
 }
 

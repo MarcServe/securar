@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { ensureUserHasOrgForUser } from "@/lib/provision-org";
 import { DashboardHeader } from "@/components/DashboardHeader";
 
 export default async function DashboardLayout({
@@ -7,7 +8,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
+  const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -15,6 +16,9 @@ export default async function DashboardLayout({
   if (!user) {
     redirect("/login");
   }
+
+  // Auto-provision org for accounts that signed in without completing signup org setup
+  await ensureUserHasOrgForUser(user);
 
   return (
     <div className="min-h-screen bg-background">

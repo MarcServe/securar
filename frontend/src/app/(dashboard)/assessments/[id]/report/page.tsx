@@ -16,6 +16,7 @@ import {
 import { cn, formatDate } from "@/lib/utils";
 import { UnlockReportButton } from "./UnlockReportButton";
 import { VerifySessionHandler } from "./VerifySessionHandler";
+import { hasFullReportAccess } from "@/lib/subscription";
 
 export default async function ReportPage({
   params,
@@ -49,6 +50,7 @@ export default async function ReportPage({
   // Type the assessment
   const assessment = assessmentData as {
     id: string;
+    org_id: string;
     status: string;
     readiness_score: number | null;
     score_breakdown: Record<string, unknown>;
@@ -103,13 +105,7 @@ export default async function ReportPage({
   const summary = report?.summary as ReportSummary | null;
   const breakdown = assessment.score_breakdown as ScoreBreakdown | null;
 
-  const { data: purchaseData } = await supabase
-    .from("report_purchases")
-    .select("id")
-    .eq("assessment_id", params.id)
-    .limit(1)
-    .maybeSingle();
-  const purchased = !!purchaseData;
+  const unlocked = await hasFullReportAccess(supabase as never, assessment.org_id, params.id);
 
   // Group controls by domain
   const controlsByDomain = (controlResults || []).reduce((acc, cr) => {
@@ -141,7 +137,7 @@ export default async function ReportPage({
               <h1 className="text-xl font-bold">Security Assessment Report</h1>
               <p className="text-muted-foreground">{org?.name}</p>
             </div>
-            {purchased ? (
+            {unlocked ? (
               <a
                 href={`/api/assessments/${params.id}/report/html`}
                 target="_blank"
@@ -215,7 +211,7 @@ export default async function ReportPage({
               <FileText className="h-5 w-5 text-primary" />
               Executive Summary
             </h2>
-            {purchased ? (
+            {unlocked ? (
               <>
                 <p className="text-lg font-medium mb-3">
                   {summary.executive_summary.headline}
@@ -255,11 +251,11 @@ export default async function ReportPage({
               <AlertTriangle className="h-5 w-5 text-amber-400" />
               Priority Risks
             </h2>
-            {!purchased && risks && risks.length > 0 && (
+            {!unlocked && risks && risks.length > 0 && (
               <span className="text-sm text-muted-foreground">{risks.length} risks identified</span>
             )}
           </div>
-          {purchased ? (
+          {unlocked ? (
             <div className="divide-y divide-border">
               {(risks || []).slice(0, 10).map((risk) => (
                 <div key={risk.id} className="p-4">
@@ -322,7 +318,7 @@ export default async function ReportPage({
                   <div key={domain}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">{domain}</span>
-                      {purchased ? (
+                      {unlocked ? (
                         <span className="text-sm text-muted-foreground">
                           {stats.compliant}/{stats.total} compliant • {score}%
                         </span>
@@ -359,7 +355,7 @@ export default async function ReportPage({
               Remediation Roadmap
             </h2>
           </div>
-          {purchased ? (
+          {unlocked ? (
             <div className="p-6 grid md:grid-cols-3 gap-6">
               <TimeframeSection
                 title="30-Day Priority"
@@ -393,7 +389,7 @@ export default async function ReportPage({
           )}
         </div>
 
-        {!purchased && (
+        {!unlocked && (
           <div className="bg-primary/5 border border-primary/20 rounded-2xl p-8 flex flex-col items-center gap-4 text-center">
             <p className="text-lg font-medium">
               Your full report is ready. Unlock once to view and download everything.

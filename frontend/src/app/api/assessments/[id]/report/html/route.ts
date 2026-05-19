@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { hasFullReportAccess } from "@/lib/subscription";
 
 export async function GET(
   _req: NextRequest,
@@ -18,16 +19,25 @@ export async function GET(
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const { data: purchase } = await supabase
-    .from("report_purchases")
-    .select("id")
-    .eq("assessment_id", assessmentId)
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
+  const { data: assessmentData } = await supabase
+    .from("assessments")
+    .select("org_id")
+    .eq("id", assessmentId)
+    .single();
 
-  if (!purchase) {
-    return new NextResponse("Purchase required to download the report", {
+  const assessment = assessmentData as { org_id: string } | null;
+  if (!assessment) {
+    return new NextResponse("Assessment not found", { status: 404 });
+  }
+
+  const unlocked = await hasFullReportAccess(
+    supabase as never,
+    assessment.org_id,
+    assessmentId
+  );
+
+  if (!unlocked) {
+    return new NextResponse("Pro subscription or report purchase required", {
       status: 402,
     });
   }

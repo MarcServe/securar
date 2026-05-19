@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getOrProvisionMembership } from "@/lib/provision-org";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,7 +11,10 @@ export async function POST(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Create an account or sign in to subscribe.", code: "AUTH_REQUIRED" },
+        { status: 401 }
+      );
     }
 
     const secret = process.env.STRIPE_SECRET_KEY;
@@ -19,35 +23,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
     }
 
-    // Find the user's org — must be admin to subscribe
-    const { data: membershipData } = await supabase
-      .from("memberships")
-      .select("org_id, role, organisations(name)")
-      .eq("user_id", user.id)
-      .in("role", ["admin", "owner"])
-      .limit(1)
-      .maybeSingle();
-
-    const membership = membershipData as {
-      org_id: string;
-      role: string;
-      organisations: { name: string } | null;
-    } | null;
-
+    const membership = await getOrProvisionMembership(user);
     if (!membership) {
       return NextResponse.json(
-        { error: "You must be an org admin to manage billing." },
-        { status: 403 }
+        { error: "Could not set up your organisation. Please try again.", code: "NO_ORG" },
+        { status: 500 }
       );
     }
 
-    const orgId = membership.org_id;
-    const orgName = membership.organisations?.name ?? "Organisation";
-
+    const { orgId, orgName } = membership;
     const admin = createAdminClient();
     const stripe = new Stripe(secret);
 
-    // Look up or create a Stripe customer for this org
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existing } = await (admin.from("subscriptions") as any)
       .select("stripe_customer_id")
@@ -67,14 +54,21 @@ export async function POST(req: NextRequest) {
     }
 
     const origin = req.headers.get("origin") || req.nextUrl.origin;
+    const body = await req.json().catch(() => ({}));
+    const fromChoosePlan = body?.source === "choose-plan";
+    const trialDays = parseInt(process.env.STRIPE_TRIAL_DAYS || "14", 10);
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       metadata: { org_id: orgId },
-      success_url: `${origin}/settings/billing?subscribed=true`,
-      cancel_url: `${origin}/pricing`,
+      subscription_data: {
+        metadata: { org_id: orgId },
+        ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
+      },
+      success_url: `${origin}/settings/billing?subscribed=true${trialDays > 0 ? "&trial=true" : ""}`,
+      cancel_url: fromChoosePlan ? `${origin}/choose-plan` : `${origin}/pricing`,
     });
 
     return NextResponse.json({ url: session.url });

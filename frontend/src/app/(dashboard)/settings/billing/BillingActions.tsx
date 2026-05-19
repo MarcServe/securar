@@ -77,7 +77,7 @@ export function BillingActions({ isPro }: BillingActionsProps) {
           ) : (
             <ArrowRight className="h-4 w-4" />
           )}
-          {loading === "upgrade" ? "Redirecting…" : "Upgrade to Pro — £49/mo"}
+          {loading === "upgrade" ? "Redirecting…" : "Start 14-day free trial"}
         </button>
       )}
       {error && <p className="text-sm text-rose-400">{error}</p>}

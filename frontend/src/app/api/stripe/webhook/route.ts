@@ -36,7 +36,42 @@ export async function POST(req: NextRequest) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
 
-      // Only handle one-time payment sessions (report unlocks)
+      if (session.mode === "subscription") {
+        const orgId = session.metadata?.org_id as string | undefined;
+        const subscriptionId = session.subscription as string | undefined;
+        const customerId = session.customer as string | undefined;
+
+        if (!orgId || !subscriptionId || !customerId) {
+          console.error("[Stripe webhook] Missing subscription checkout fields", session.id);
+          break;
+        }
+
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        const periodEnd = (sub as unknown as { current_period_end: number }).current_period_end;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase.from("subscriptions") as any).upsert(
+          {
+            org_id: orgId,
+            stripe_customer_id: customerId,
+            stripe_subscription_id: sub.id,
+            plan: "pro",
+            status: sub.status,
+            current_period_end: new Date(periodEnd * 1000).toISOString(),
+            cancel_at_period_end: sub.cancel_at_period_end,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "stripe_subscription_id" }
+        );
+
+        if (error) {
+          console.error("[Stripe webhook] Subscription checkout upsert failed", error);
+        }
+        break;
+      }
+
+      // One-time payment sessions (report unlocks)
       if (session.mode !== "payment") break;
 
       const assessmentId =

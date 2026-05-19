@@ -34,3 +34,26 @@ export function isPro(subscription: Subscription | null): boolean {
     (subscription.status === "active" || subscription.status === "trialing")
   );
 }
+
+export function isTrialing(subscription: Subscription | null): boolean {
+  return subscription?.status === "trialing";
+}
+
+/** Full report access via Pro subscription or a one-time report purchase. */
+export async function hasFullReportAccess(
+  supabase: SupabaseClient,
+  orgId: string,
+  assessmentId: string
+): Promise<boolean> {
+  const subscription = await getOrgSubscription(supabase, orgId);
+  if (isPro(subscription)) return true;
+
+  const { data: purchase } = await supabase
+    .from("report_purchases")
+    .select("id")
+    .eq("assessment_id", assessmentId)
+    .limit(1)
+    .maybeSingle();
+
+  return !!purchase;
+}
