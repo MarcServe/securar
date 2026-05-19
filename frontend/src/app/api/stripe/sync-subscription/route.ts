@@ -24,10 +24,11 @@ export async function POST() {
       return NextResponse.json({ error: "No organisation found" }, { status: 404 });
     }
 
-    const synced = await syncOrgSubscriptionFromStripe(orgId, user.email ?? undefined);
-    return NextResponse.json({ synced });
+    const result = await syncOrgSubscriptionFromStripe(orgId, user.email ?? undefined);
+    return NextResponse.json(result);
   } catch (e) {
+    const message = e instanceof Error ? e.message : "Sync failed";
     console.error("[sync-subscription]", e);
-    return NextResponse.json({ error: "Sync failed" }, { status: 500 });
+    return NextResponse.json({ synced: false, reason: message }, { status: 500 });
   }
 }

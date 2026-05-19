@@ -4,30 +4,43 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 interface BillingSyncProps {
-  /** Re-fetch billing state from Stripe when checkout redirect still shows exploration trial. */
+  /** Attempt Stripe sync while the page still shows an exploration trial. */
   needsSync: boolean;
 }
 
 export function BillingSync({ needsSync }: BillingSyncProps) {
   const router = useRouter();
-  const attempted = useRef(false);
+  const attempts = useRef(0);
 
   useEffect(() => {
-    if (!needsSync || attempted.current) return;
-    attempted.current = true;
+    if (!needsSync) return;
 
-    (async () => {
-      try {
-        const res = await fetch("/api/stripe/sync-subscription", { method: "POST" });
-        const data = await res.json();
-        if (res.ok && data.synced) {
-          router.replace("/settings/billing?subscribed=true");
-          router.refresh();
+    let cancelled = false;
+
+    const run = async () => {
+      while (attempts.current < 3 && !cancelled) {
+        attempts.current += 1;
+        try {
+          const res = await fetch("/api/stripe/sync-subscription", { method: "POST" });
+          const data = await res.json();
+          if (!cancelled && res.ok && data.synced) {
+            router.replace("/settings/billing?subscribed=true");
+            router.refresh();
+            return;
+          }
+        } catch {
+          // retry
         }
-      } catch {
-        // Page still renders; user can refresh manually
+        if (attempts.current < 3 && !cancelled) {
+          await new Promise((r) => setTimeout(r, 2000));
+        }
       }
-    })();
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, [needsSync, router]);
 
   if (!needsSync) return null;

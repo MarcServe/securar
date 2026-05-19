@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type Subscription = {
   id: string;
@@ -20,6 +21,19 @@ export async function getOrgSubscription(
 ): Promise<Subscription | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase.from("subscriptions") as any)
+    .select("*")
+    .eq("org_id", orgId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ?? null;
+}
+
+/** Load subscription via service role (billing sync — bypasses stale RLS reads). */
+export async function getOrgSubscriptionAdmin(orgId: string): Promise<Subscription | null> {
+  const admin = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (admin.from("subscriptions") as any)
     .select("*")
     .eq("org_id", orgId)
     .order("updated_at", { ascending: false })

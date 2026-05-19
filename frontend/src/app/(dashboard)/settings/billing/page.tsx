@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getOrgSubscription, isPro as checkIsPro, isExplorationTrial, hasStripeSubscription } from "@/lib/subscription";
+import { getOrgSubscriptionAdmin, isPro as checkIsPro, isExplorationTrial, hasStripeSubscription } from "@/lib/subscription";
 import { getTrialDays } from "@/lib/trial-config";
 import { syncSubscriptionFromCheckoutSession, syncOrgSubscriptionFromStripe } from "@/lib/sync-stripe-subscription";
 import { BillingActions } from "./BillingActions";
@@ -11,6 +11,8 @@ import { CheckCircle2, AlertTriangle, Crown } from "lucide-react";
 interface PageProps {
   searchParams: { subscribed?: string; session_id?: string };
 }
+
+export const dynamic = "force-dynamic";
 
 export default async function BillingPage({ searchParams }: PageProps) {
   const supabase = createClient();
@@ -22,7 +24,10 @@ export default async function BillingPage({ searchParams }: PageProps) {
 
   if (searchParams.session_id) {
     try {
-      await syncSubscriptionFromCheckoutSession(searchParams.session_id);
+      const result = await syncSubscriptionFromCheckoutSession(searchParams.session_id);
+      if (!result.synced) {
+        console.warn("[billing] checkout sync:", result.reason);
+      }
     } catch (e) {
       console.error("[billing] checkout sync failed", e);
     }
@@ -46,14 +51,16 @@ export default async function BillingPage({ searchParams }: PageProps) {
 
   if (orgId) {
     try {
-      await syncOrgSubscriptionFromStripe(orgId, user.email ?? undefined);
+      const result = await syncOrgSubscriptionFromStripe(orgId, user.email ?? undefined);
+      if (!result.synced && result.reason && result.reason !== "already synced") {
+        console.warn("[billing] stripe sync:", result.reason);
+      }
     } catch (e) {
       console.error("[billing] stripe sync failed", e);
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const subscription = orgId ? await getOrgSubscription(supabase as any, orgId) : null;
+  const subscription = orgId ? await getOrgSubscriptionAdmin(orgId) : null;
   const pro = checkIsPro(subscription);
   const explorationTrial = isExplorationTrial(subscription);
   const subscribed = hasStripeSubscription(subscription);
@@ -68,7 +75,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
     : null;
 
   const justSubscribed = searchParams.subscribed === "true";
-  const needsStripeSync = justSubscribed && explorationTrial;
+  const needsStripeSync = explorationTrial;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-8">
