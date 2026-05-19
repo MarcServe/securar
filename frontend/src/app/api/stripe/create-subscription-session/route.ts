@@ -20,13 +20,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Find the user's org — must be admin to subscribe
-    const { data: membership } = await supabase
+    const { data: membershipData } = await supabase
       .from("memberships")
       .select("org_id, role, organisations(name)")
       .eq("user_id", user.id)
       .in("role", ["admin", "owner"])
       .limit(1)
       .maybeSingle();
+
+    const membership = membershipData as {
+      org_id: string;
+      role: string;
+      organisations: { name: string } | null;
+    } | null;
 
     if (!membership) {
       return NextResponse.json(
@@ -35,8 +41,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const orgId = membership.org_id as string;
-    const orgName = (membership.organisations as { name: string } | null)?.name ?? "Organisation";
+    const orgId = membership.org_id;
+    const orgName = membership.organisations?.name ?? "Organisation";
 
     const admin = createAdminClient();
     const stripe = new Stripe(secret);

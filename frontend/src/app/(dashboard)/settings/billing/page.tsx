@@ -17,16 +17,21 @@ export default async function BillingPage({ searchParams }: PageProps) {
   if (!user) redirect("/login");
 
   // Find the user's org
-  const { data: membership } = await supabase
+  const { data: membershipData } = await supabase
     .from("memberships")
     .select("org_id, role, organisations(name)")
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
 
-  const orgId = membership?.org_id as string | undefined;
-  const orgName =
-    (membership?.organisations as { name: string } | null)?.name ?? "Your Organisation";
+  const membership = membershipData as {
+    org_id: string;
+    role: string;
+    organisations: { name: string } | null;
+  } | null;
+
+  const orgId = membership?.org_id;
+  const orgName = membership?.organisations?.name ?? "Your Organisation";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subscription = orgId ? await getOrgSubscription(supabase as any, orgId) : null;
