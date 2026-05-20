@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getOrgSubscriptionAdmin, isPro as checkIsPro, isExplorationTrial, hasStripeSubscription } from "@/lib/subscription";
+import { getOrgSubscriptionAdmin, isPro as checkIsPro, isExplorationTrial, hasStripeSubscription, shouldAttemptStripeLink } from "@/lib/subscription";
 import { getTrialDays } from "@/lib/trial-config";
 import { syncSubscriptionFromCheckoutSession, syncOrgSubscriptionFromStripe } from "@/lib/sync-stripe-subscription";
 import { BillingActions } from "./BillingActions";
@@ -75,11 +75,15 @@ export default async function BillingPage({ searchParams }: PageProps) {
     : null;
 
   const justSubscribed = searchParams.subscribed === "true";
-  const needsStripeSync = explorationTrial;
+  const hasSessionId = !!searchParams.session_id;
+  const needsStripeSync = shouldAttemptStripeLink(subscription, {
+    justSubscribed,
+    hasSessionId,
+  });
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-8">
-      <BillingSync needsSync={needsStripeSync} />
+      <BillingSync needsSync={needsStripeSync} afterCheckout={justSubscribed || hasSessionId} />
 
       {justSubscribed && (
         <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-5 py-4">

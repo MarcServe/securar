@@ -6,6 +6,8 @@ import { RefreshCw } from "lucide-react";
 
 interface BillingSyncProps {
   needsSync: boolean;
+  /** User just returned from Stripe checkout */
+  afterCheckout?: boolean;
 }
 
 async function callSyncApi(): Promise<{ synced: boolean; reason?: string }> {
@@ -15,7 +17,7 @@ async function callSyncApi(): Promise<{ synced: boolean; reason?: string }> {
   return { synced: false, reason: data.reason || "Could not find your Stripe subscription" };
 }
 
-export function BillingSync({ needsSync }: BillingSyncProps) {
+export function BillingSync({ needsSync, afterCheckout = false }: BillingSyncProps) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "syncing" | "failed">("idle");
   const [reason, setReason] = useState<string | null>(null);
@@ -83,7 +85,9 @@ export function BillingSync({ needsSync }: BillingSyncProps) {
   if (status === "syncing") {
     return (
       <p className="text-sm text-muted-foreground animate-pulse">
-        Confirming your subscription with Stripe…
+        {afterCheckout
+          ? "Confirming your subscription with Stripe…"
+          : "Checking Stripe for an active subscription…"}
       </p>
     );
   }
@@ -91,9 +95,19 @@ export function BillingSync({ needsSync }: BillingSyncProps) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
       <p className="text-sm text-amber-200 flex-1">
-        We couldn&apos;t link your payment automatically
-        {reason ? `: ${reason}` : ""}. Check that Vercel uses the same Stripe
-        mode (test/live) as checkout, then retry.
+        {afterCheckout ? (
+          <>
+            We couldn&apos;t link your payment automatically
+            {reason ? `: ${reason}` : ""}. Check that Vercel uses the same Stripe
+            mode (test/live) as checkout, then retry.
+          </>
+        ) : (
+          <>
+            No active Stripe subscription was found for this organisation
+            {reason ? ` (${reason})` : ""}. Subscribe below, or retry if you
+            already paid with a different email.
+          </>
+        )}
       </p>
       <button
         type="button"
@@ -101,7 +115,7 @@ export function BillingSync({ needsSync }: BillingSyncProps) {
         className="inline-flex items-center gap-2 shrink-0 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-muted transition-colors"
       >
         <RefreshCw className="h-4 w-4" />
-        Retry sync
+        Check Stripe again
       </button>
     </div>
   );

@@ -70,6 +70,17 @@ export function hasStripeSubscription(subscription: Subscription | null): boolea
   return !!subscription?.stripe_subscription_id?.startsWith("sub_");
 }
 
+/** True when we should actively poll Stripe (after checkout or pending customer link). */
+export function shouldAttemptStripeLink(
+  subscription: Subscription | null,
+  opts: { justSubscribed: boolean; hasSessionId: boolean }
+): boolean {
+  if (hasStripeSubscription(subscription)) return false;
+  if (opts.justSubscribed || opts.hasSessionId) return true;
+  const customerId = subscription?.stripe_customer_id ?? "";
+  return customerId.startsWith("cus_");
+}
+
 export type PlanDisplay = {
   name: string;
   badge: string;

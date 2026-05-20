@@ -120,31 +120,54 @@ async function searchCustomerByOrgMetadata(
   }
 }
 
+async function getOrgMemberEmails(orgId: string): Promise<string[]> {
+  const admin = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: memberships } = await (admin.from("memberships") as any)
+    .select("user_id")
+    .eq("org_id", orgId);
+
+  const userIds = ((memberships as Array<{ user_id: string }> | null) ?? []).map(
+    (m) => m.user_id
+  );
+
+  const emails = new Set<string>();
+  for (const userId of userIds) {
+    const { data: authUser } = await admin.auth.admin.getUserById(userId);
+    const email = authUser.user?.email?.trim().toLowerCase();
+    if (email) emails.add(email);
+  }
+  return [...emails];
+}
+
 async function findStripeCustomerId(
   stripe: Stripe,
   orgId: string,
-  userEmail?: string
+  userEmails: string[]
 ): Promise<string | null> {
   const byOrg = await searchCustomerByOrgMetadata(stripe, orgId);
   if (byOrg) return byOrg;
 
-  if (!userEmail) return null;
+  if (userEmails.length === 0) return null;
 
-  const { data: customers } = await stripe.customers.list({
-    email: userEmail,
-    limit: 20,
-  });
+  for (const userEmail of userEmails) {
+    const { data: customers } = await stripe.customers.list({
+      email: userEmail,
+      limit: 20,
+    });
 
-  const byOrgMeta = customers.find((c) => c.metadata?.org_id === orgId);
-  if (byOrgMeta) return byOrgMeta.id;
+    const byOrgMeta = customers.find((c) => c.metadata?.org_id === orgId);
+    if (byOrgMeta) return byOrgMeta.id;
 
-  // Prefer a customer that already has an active subscription
-  for (const customer of customers) {
-    const sub = await findActiveStripeSubscription(stripe, customer.id);
-    if (sub) return customer.id;
+    for (const customer of customers) {
+      const sub = await findActiveStripeSubscription(stripe, customer.id);
+      if (sub) return customer.id;
+    }
+
+    if (customers[0]?.id) return customers[0].id;
   }
 
-  return customers[0]?.id ?? null;
+  return null;
 }
 
 async function findActiveStripeSubscription(
@@ -167,11 +190,9 @@ async function findActiveStripeSubscription(
 async function findSubscriptionViaCheckoutSessions(
   stripe: Stripe,
   orgId: string,
-  userEmail?: string
+  userEmails: string[]
 ): Promise<Stripe.Subscription | null> {
-  if (!userEmail) return null;
-
-  const email = userEmail.toLowerCase();
+  const emailSet = new Set(userEmails.map((e) => e.toLowerCase()));
   let startingAfter: string | undefined;
 
   for (let page = 0; page < 5; page++) {
@@ -191,7 +212,7 @@ async function findSubscriptionViaCheckoutSessions(
       ).toLowerCase();
 
       const sessionOrgId = session.metadata?.org_id as string | undefined;
-      const emailMatch = sessionEmail === email;
+      const emailMatch = emailSet.size > 0 && emailSet.has(sessionEmail);
       const orgMatch = sessionOrgId === orgId;
 
       if (!emailMatch && !orgMatch) continue;
@@ -215,7 +236,7 @@ async function findSubscriptionViaCheckoutSessions(
 async function findSubscriptionForOrg(
   stripe: Stripe,
   orgId: string,
-  userEmail?: string,
+  userEmails: string[],
   storedCustomerId?: string | null
 ): Promise<Stripe.Subscription | null> {
   // 1) Direct lookup by subscription metadata (most reliable after checkout)
@@ -228,15 +249,15 @@ async function findSubscriptionForOrg(
     if (sub) return sub;
   }
 
-  // 3) Find customer by org metadata or email, then list subscriptions
-  const customerId = await findStripeCustomerId(stripe, orgId, userEmail);
+  // 3) Find customer by org metadata or any org member email, then list subscriptions
+  const customerId = await findStripeCustomerId(stripe, orgId, userEmails);
   if (customerId) {
     const sub = await findActiveStripeSubscription(stripe, customerId);
     if (sub) return sub;
   }
 
   // 4) Scan recent completed checkout sessions (handles missing metadata / wrong customer row)
-  return findSubscriptionViaCheckoutSessions(stripe, orgId, userEmail);
+  return findSubscriptionViaCheckoutSessions(stripe, orgId, userEmails);
 }
 
 export type SyncResult = {
@@ -282,18 +303,27 @@ export async function syncOrgSubscriptionFromStripe(
   }
 
   const stripe = new Stripe(secret);
+
+  const memberEmails = await getOrgMemberEmails(orgId);
+  const emails = [
+    ...new Set(
+      [userEmail?.trim().toLowerCase(), ...memberEmails].filter(Boolean) as string[]
+    ),
+  ];
+
   const sub = await findSubscriptionForOrg(
     stripe,
     orgId,
-    userEmail,
+    emails,
     row?.stripe_customer_id as string | undefined
   );
 
   if (!sub) {
     const mode = secret.startsWith("sk_live") ? "live" : "test";
+    const emailHint = emails.length > 0 ? emails.join(", ") : orgId;
     return {
       synced: false,
-      reason: `no subscription found in Stripe ${mode} mode for ${userEmail ?? orgId}`,
+      reason: `no subscription found in Stripe ${mode} mode for ${emailHint}`,
     };
   }
 
